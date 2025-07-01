@@ -1,19 +1,13 @@
-import { ThemeProvider } from './components/theme-provicer';
-import { ModeToggle } from './components/mode-toggle';
-import { NavBar } from './components/NavBar';
+import { NavBar } from "@/components/NavBar"
+import type { ReactNode } from "react"
 
-export const App = ({ children }: { children: React.ReactNode }) => {
+export const App = ({ children }: { children: ReactNode }) => {
   return (
     <>
-      <ThemeProvider defaultTheme="system" storageKey="vite-ui-theme">
-        <div className='mb-4 p-4 mt-4 min-h-screen'>
-          <div className='flex justify-between'>
-            <NavBar />
-            <ModeToggle />
-          </div>
-          {children}
-        </div>
-      </ThemeProvider>
+      <NavBar />
+      <div className="flex justify-center items-center min-h-screen">
+        {children}
+      </div>
     </>
   )
 }

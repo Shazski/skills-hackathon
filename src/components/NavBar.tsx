@@ -10,6 +10,7 @@ import {
   navigationMenuTriggerStyle,
 } from "@/components/ui/navigation-menu"
 import { NavLink } from "react-router";
+import { ModeToggle } from './mode-toggle';
 
 const components: { title: string; to: string; description: string }[] = [
   {
@@ -18,6 +19,7 @@ const components: { title: string; to: string; description: string }[] = [
     description:
       "A modal dialog that interrupts the user with important content and expects a response.",
   },
+
   {
     title: "Hover Card",
     to: "/docs/primitives/hover-card",
@@ -51,131 +53,136 @@ const components: { title: string; to: string; description: string }[] = [
 
 export function NavBar() {
   return (
-    <NavigationMenu viewport={false}>
-      <NavigationMenuList>
-        <NavigationMenuItem>
-          <NavigationMenuTrigger>Home</NavigationMenuTrigger>
-          <NavigationMenuContent>
-            <ul className="grid gap-2 md:w-[400px] lg:w-[500px] lg:grid-cols-[.75fr_1fr]">
-              <li className="row-span-3">
-                <NavigationMenuLink asChild>
-                  <NavLink
-                    className="from-muted/50 to-muted flex h-full w-full flex-col justify-end rounded-md bg-linear-to-b p-6 no-underline outline-hidden select-none focus:shadow-md"
-                    to="/"
+    <div className="flex justify-around mt-4 sticky top-2">
+      <NavigationMenu>
+        <NavigationMenuList>
+          <NavigationMenuItem>
+            <NavigationMenuTrigger>Home</NavigationMenuTrigger>
+            <NavigationMenuContent>
+              <ul className="grid gap-2 md:w-[400px] lg:w-[500px] lg:grid-cols-[.75fr_1fr]">
+                <li className="row-span-3">
+                  <NavigationMenuLink asChild>
+                    <NavLink
+                      className="from-muted/50 to-muted flex h-full w-full flex-col justify-end rounded-md bg-linear-to-b p-6 no-underline outline-hidden select-none focus:shadow-md"
+                      to="/"
+                    >
+                      <div className="mt-4 mb-2 text-lg font-medium">
+                        shadcn/ui
+                      </div>
+                      <p className="text-muted-foreground text-sm leading-tight">
+                        Beautifully designed components built with Tailwind CSS.
+                      </p>
+                    </NavLink>
+                  </NavigationMenuLink>
+                </li>
+              </ul>
+            </NavigationMenuContent>
+          </NavigationMenuItem>
+          <NavigationMenuItem>
+            <NavigationMenuTrigger>Components</NavigationMenuTrigger>
+            <NavigationMenuContent>
+              <ul className="grid w-[400px] gap-2 md:w-[500px] md:grid-cols-2 lg:w-[600px]">
+                {components.map((component) => (
+                  <ListItem
+                    key={component.title}
+                    title={component.title}
+                    to={component.to}
                   >
-                    <div className="mt-4 mb-2 text-lg font-medium">
-                      shadcn/ui
-                    </div>
-                    <p className="text-muted-foreground text-sm leading-tight">
-                      Beautifully designed components built with Tailwind CSS.
-                    </p>
-                  </NavLink>
-                </NavigationMenuLink>
-              </li>
-            </ul>
-          </NavigationMenuContent>
-        </NavigationMenuItem>
-        <NavigationMenuItem>
-          <NavigationMenuTrigger>Components</NavigationMenuTrigger>
-          <NavigationMenuContent>
-            <ul className="grid w-[400px] gap-2 md:w-[500px] md:grid-cols-2 lg:w-[600px]">
-              {components.map((component) => (
-                <ListItem
-                  key={component.title}
-                  title={component.title}
-                  to={component.to}
-                >
-                  {component.description}
-                </ListItem>
-              ))}
-            </ul>
-          </NavigationMenuContent>
-        </NavigationMenuItem>
-        <NavigationMenuItem>
-          <NavigationMenuLink asChild className={navigationMenuTriggerStyle()}>
-            <NavLink to="/docs">Docs</NavLink>
-          </NavigationMenuLink>
-        </NavigationMenuItem>
-        <NavigationMenuItem>
-          <NavigationMenuTrigger>List</NavigationMenuTrigger>
-          <NavigationMenuContent>
-            <ul className="grid w-[300px] gap-4">
-              <li>
-                <NavigationMenuLink asChild>
-                  <NavLink to="#">
-                    <div className="font-medium">Components</div>
-                    <div className="text-muted-foreground">
-                      Browse all components in the library.
-                    </div>
-                  </NavLink>
-                </NavigationMenuLink>
-                <NavigationMenuLink asChild>
-                  <NavLink to="#">
-                    <div className="font-medium">Documentation</div>
-                    <div className="text-muted-foreground">
-                      Learn how to use the library.
-                    </div>
-                  </NavLink>
-                </NavigationMenuLink>
-                <NavigationMenuLink asChild>
-                  <NavLink to="#">
-                    <div className="font-medium">Blog</div>
-                    <div className="text-muted-foreground">
-                      Read our latest blog posts.
-                    </div>
-                  </NavLink>
-                </NavigationMenuLink>
-              </li>
-            </ul>
-          </NavigationMenuContent>
-        </NavigationMenuItem>
-        <NavigationMenuItem>
-          <NavigationMenuTrigger>Simple</NavigationMenuTrigger>
-          <NavigationMenuContent>
-            <ul className="grid w-[200px] gap-4">
-              <li>
-                <NavigationMenuLink asChild>
-                  <NavLink to="#">Components</NavLink>
-                </NavigationMenuLink>
-                <NavigationMenuLink asChild>
-                  <NavLink to="#">Documentation</NavLink>
-                </NavigationMenuLink>
-                <NavigationMenuLink asChild>
-                  <NavLink to="#">Blocks</NavLink>
-                </NavigationMenuLink>
-              </li>
-            </ul>
-          </NavigationMenuContent>
-        </NavigationMenuItem>
-        <NavigationMenuItem>
-          <NavigationMenuTrigger>With Icon</NavigationMenuTrigger>
-          <NavigationMenuContent>
-            <ul className="grid w-[200px] gap-4">
-              <li>
-                <NavigationMenuLink asChild>
-                  <NavLink to="#" className="flex-row items-center gap-2">
-                    <CircleHelpIcon />
-                    Backlog
-                  </NavLink>
-                </NavigationMenuLink>
-                <NavigationMenuLink asChild>
-                  <NavLink to="#" className="flex-row items-center gap-2">
-                    <CircleIcon />
-                    To Do
-                  </NavLink>
-                </NavigationMenuLink>
-                <NavigationMenuLink asChild>
-                  <NavLink to="#" className="flex-row items-center gap-2">
-                    <CircleCheckIcon />
-                    Done
-                  </NavLink>
-                </NavigationMenuLink>
-              </li>
-            </ul>
-          </NavigationMenuContent>
-        </NavigationMenuItem>
-      </NavigationMenuList>
-    </NavigationMenu>
+                    {component.description}
+                  </ListItem>
+                ))}
+              </ul>
+            </NavigationMenuContent>
+          </NavigationMenuItem>
+          <NavigationMenuItem>
+            <NavigationMenuLink asChild className={navigationMenuTriggerStyle()}>
+              <NavLink to="/docs">Docs</NavLink>
+            </NavigationMenuLink>
+          </NavigationMenuItem>
+          <NavigationMenuItem>
+            <NavigationMenuTrigger>List</NavigationMenuTrigger>
+            <NavigationMenuContent>
+              <ul className="grid w-[300px] gap-4">
+                <li>
+                  <NavigationMenuLink asChild>
+                    <NavLink to="#">
+                      <div className="font-medium">Components</div>
+                      <div className="text-muted-foreground">
+                        Browse all components in the library.
+                      </div>
+                    </NavLink>
+                  </NavigationMenuLink>
+                  <NavigationMenuLink asChild>
+                    <NavLink to="#">
+                      <div className="font-medium">Documentation</div>
+                      <div className="text-muted-foreground">
+                        Learn how to use the library.
+                      </div>
+                    </NavLink>
+                  </NavigationMenuLink>
+                  <NavigationMenuLink asChild>
+                    <NavLink to="#">
+                      <div className="font-medium">Blog</div>
+                      <div className="text-muted-foreground">
+                        Read our latest blog posts.
+                      </div>
+                    </NavLink>
+                  </NavigationMenuLink>
+                </li>
+              </ul>
+            </NavigationMenuContent>
+          </NavigationMenuItem>
+          <NavigationMenuItem>
+            <NavigationMenuTrigger>Simple</NavigationMenuTrigger>
+            <NavigationMenuContent>
+              <ul className="grid w-[200px] gap-4">
+                <li>
+                  <NavigationMenuLink asChild>
+                    <NavLink to="#">Components</NavLink>
+                  </NavigationMenuLink>
+                  <NavigationMenuLink asChild>
+                    <NavLink to="#">Documentation</NavLink>
+                  </NavigationMenuLink>
+                  <NavigationMenuLink asChild>
+                    <NavLink to="#">Blocks</NavLink>
+                  </NavigationMenuLink>
+                </li>
+              </ul>
+            </NavigationMenuContent>
+          </NavigationMenuItem>
+          <NavigationMenuItem>
+            <NavigationMenuTrigger>With Icon</NavigationMenuTrigger>
+            <NavigationMenuContent>
+              <ul className="grid w-[200px] gap-4">
+                <li>
+                  <NavigationMenuLink asChild>
+                    <NavLink to="#" className="flex-row items-center gap-2">
+                      <CircleHelpIcon />
+                      Backlog
+                    </NavLink>
+                  </NavigationMenuLink>
+                  <NavigationMenuLink asChild>
+                    <NavLink to="#" className="flex-row items-center gap-2">
+                      <CircleIcon />
+                      To Do
+                    </NavLink>
+                  </NavigationMenuLink>
+                  <NavigationMenuLink asChild>
+                    <NavLink to="#" className="flex-row items-center gap-2">
+                      <CircleCheckIcon />
+                      Done
+                    </NavLink>
+                  </NavigationMenuLink>
+                </li>
+              </ul>
+            </NavigationMenuContent>
+          </NavigationMenuItem>
+        </NavigationMenuList>
+      </NavigationMenu>
+      <div>
+        <ModeToggle />
+      </div>
+    </div>
   )
 }
 
