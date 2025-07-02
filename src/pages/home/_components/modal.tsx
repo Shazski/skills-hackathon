@@ -20,7 +20,7 @@ export function CreateHomeModal() {
         <DialogTrigger asChild>
           <Button variant="outline" className='hover:cursor-pointer text-end'>Create Home <Plus /></Button>
         </DialogTrigger>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-[425px] animate-in fade-in-90 slide-in-from-top-8 zoom-in-90 duration-400 ease-out">
           <DialogHeader>
             <DialogTitle>Create Home</DialogTitle>
             <DialogDescription>

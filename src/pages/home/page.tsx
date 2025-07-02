@@ -9,7 +9,7 @@ export const Home = () => {
       <div className="flex justify-end mb-6 me-14 mt-2">
         <CreateHomeModal />
       </div>
-      <div className="flex flex-wrap justify-center md:justify-evenly gap-6 mt-4">
+      <div className="flex flex-wrap justify-center md:justify-evenly gap-2 mt-4">
         {[1, 2, 3, 4].map((_, i) => (
           <div
             key={i}
