@@ -4,8 +4,7 @@ import type { ReactNode } from "react"
 export const App = ({ children }: { children: ReactNode }) => {
   return (
     <>
-      <NavBar />
-      <div className="flex justify-center items-center min-h-screen">
+      <div className="flex justify-center items-center min-h-[85vh]">
         {children}
       </div>
     </>

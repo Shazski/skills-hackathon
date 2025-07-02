@@ -17,11 +17,8 @@ export function Login() {
       <CardHeader>
         <CardTitle>Login to your account</CardTitle>
         <CardDescription>
-          Enter your email below to login to your account
+          Enter your email and password to login
         </CardDescription>
-        <CardAction>
-          <Button variant="link">Sign Up</Button>
-        </CardAction>
       </CardHeader>
       <CardContent>
         <form>
@@ -38,12 +35,6 @@ export function Login() {
             <div className="grid gap-2">
               <div className="flex items-center">
                 <Label htmlFor="password">Password</Label>
-                <a
-                  href="#"
-                  className="ml-auto inline-block text-sm underline-offset-4 hover:underline"
-                >
-                  Forgot your password?
-                </a>
               </div>
               <Input id="password" type="password" required />
             </div>
@@ -54,9 +45,11 @@ export function Login() {
         <Button type="submit" className="w-full">
           Login
         </Button>
-        <Button variant="outline" className="w-full">
-          Login with Google
-        </Button>
+        <div className="flex justify-center">
+          <CardAction>
+            <Button className="w-full hover:scale-105 hover:cursor-pointer" variant={"link"}>Sign Up</Button>
+          </CardAction>
+        </div>
       </CardFooter>
     </Card>
   )

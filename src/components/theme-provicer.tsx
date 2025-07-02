@@ -58,7 +58,9 @@ export function ThemeProvider({
 
   return (
     <ThemeProviderContext.Provider {...props} value={value}>
-      {children}
+      <div className="p-3 overflow-hidden">
+        {children}
+      </div>
     </ThemeProviderContext.Provider>
   )
 }
