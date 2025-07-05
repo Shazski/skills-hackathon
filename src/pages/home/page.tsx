@@ -14,7 +14,7 @@ export const Home = () => {
   };
 
   return (
-    <div className="px-4 md:px-12 min-h-screen">
+    <div className="px-4 md:px-12 h-screen overflow-y-auto pb-20 md:pb-4">
       <motion.div
         className="text-center mb-8"
         initial={{ opacity: 0, y: -30 }}
@@ -51,8 +51,8 @@ export const Home = () => {
       >
         <CreateHomeModal />
       </motion.div>
-      <div className="flex flex-wrap justify-center md:justify-evenly gap-6 mt-8">
-        {[1, 2, 3, 4].map((_, i) => (
+      <div className="flex flex-wrap justify-center md:justify-evenly gap-6 mt-8 mb-20">
+        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((_, i) => (
           <motion.div
             key={i}
             className="group relative w-[280px] bg-gray-50 dark:bg-gray-900 rounded-2xl shadow-lg overflow-hidden border border-gray-200 dark:border-gray-700"
