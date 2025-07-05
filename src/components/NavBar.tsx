@@ -14,8 +14,9 @@ export function NavBar() {
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
-          <motion.div
-            className="flex items-center space-x-3"
+          <motion.a
+            href='/home'
+            className="flex items-center space-x-3 cursor-pointer"
             whileHover={{ scale: 1.05 }}
             transition={{ type: "spring", stiffness: 300 }}
           >
@@ -34,7 +35,7 @@ export function NavBar() {
             >
               HomeFinder
             </motion.span>
-          </motion.div>
+          </motion.a>
           <motion.div
             className="hidden md:flex items-center space-x-8"
             initial={{ opacity: 0 }}
@@ -59,15 +60,6 @@ export function NavBar() {
               <Search className="h-4 w-4" />
               <span>Search</span>
             </motion.a>
-            <motion.a
-              href="#profile"
-              className="flex items-center space-x-2 text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors duration-200 font-medium"
-              whileHover={{ y: -2 }}
-              whileTap={{ scale: 0.95 }}
-            >
-              <User className="h-4 w-4" />
-              <span>Profile</span>
-            </motion.a>
           </motion.div>
           <motion.div
             className="flex items-center space-x-4"
@@ -80,19 +72,6 @@ export function NavBar() {
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.9 }}
             >
-              <Button
-                variant="ghost"
-                size="icon"
-                className="relative text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400"
-              >
-                <Bell className="h-5 w-5" />
-                <motion.div
-                  className="absolute -top-1 -right-1 h-3 w-3 bg-red-500 rounded-full"
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  transition={{ delay: 0.8, type: "spring" }}
-                />
-              </Button>
             </motion.div>
 
             <motion.div
