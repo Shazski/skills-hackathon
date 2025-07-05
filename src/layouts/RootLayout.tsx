@@ -5,10 +5,8 @@ import type { ReactNode } from "react"
 export const RootLayout = ({ children }: { children: ReactNode }) => {
   return (
     <ThemeProvider defaultTheme="system" storageKey="vite-ui-theme">
-      <div>
-        <NavBar />
-      </div>
-      <div className="mt-6">
+      <NavBar />
+      <div className="pt-20">
         {children}
       </div>
     </ThemeProvider>
