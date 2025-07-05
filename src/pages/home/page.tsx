@@ -14,7 +14,7 @@ export const Home = () => {
   };
 
   return (
-    <div className="px-4 md:px-12 h-screen overflow-y-auto pb-20 md:pb-4">
+    <div className="px-4 md:px-12 pb-20 md:pb-4">
       <motion.div
         className="text-center mb-8"
         initial={{ opacity: 0, y: -30 }}

@@ -25,7 +25,7 @@ export function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-start justify-center p-4 pt-20 md:pt-4 md:items-center overflow-y-auto">
+    <div className="flex items-start justify-center p-6 pt-20 md:pt-4 md:items-center w-full py-8">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}

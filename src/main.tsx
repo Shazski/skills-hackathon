@@ -7,8 +7,6 @@ import { RootLayout } from './layouts/RootLayout';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <RootLayout>
-      <RouterProvider router={router} />
-    </RootLayout>
+    <RouterProvider router={router} />
   </StrictMode>,
 )

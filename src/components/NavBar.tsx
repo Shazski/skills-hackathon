@@ -1,10 +1,14 @@
 import LOGO from '../assets/logo.jpg'
 import { ModeToggle } from './mode-toggle';
 import { motion } from 'framer-motion';
-import { Home, Search, User, Bell, Menu } from 'lucide-react';
+import { Home, Search, User, Menu } from 'lucide-react';
 import { Button } from './ui/button';
+import { useLocation } from 'react-router';
 
 export function NavBar() {
+  const location = useLocation();
+  const isAuthPage = location.pathname === '/login' || location.pathname === '/signup';
+
   return (
     <motion.nav
       className="fixed top-0 left-0 right-0 z-50 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-200/50 dark:border-gray-700/50 shadow-lg"
@@ -36,31 +40,33 @@ export function NavBar() {
               HomeFinder
             </motion.span>
           </motion.a>
-          <motion.div
-            className="hidden md:flex items-center space-x-8"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.3 }}
-          >
-            <motion.a
-              href="/home"
-              className="flex items-center space-x-2 text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors duration-200 font-medium"
-              whileHover={{ y: -2 }}
-              whileTap={{ scale: 0.95 }}
+          {!isAuthPage && (
+            <motion.div
+              className="hidden md:flex items-center space-x-8"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.3 }}
             >
-              <Home className="h-4 w-4" />
-              <span>Home</span>
-            </motion.a>
-            <motion.a
-              href="#search"
-              className="flex items-center space-x-2 text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors duration-200 font-medium"
-              whileHover={{ y: -2 }}
-              whileTap={{ scale: 0.95 }}
-            >
-              <Search className="h-4 w-4" />
-              <span>Search</span>
-            </motion.a>
-          </motion.div>
+              <motion.a
+                href="/home"
+                className="flex items-center space-x-2 text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors duration-200 font-medium"
+                whileHover={{ y: -2 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                <Home className="h-4 w-4" />
+                <span>Home</span>
+              </motion.a>
+              <motion.a
+                href="#search"
+                className="flex items-center space-x-2 text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors duration-200 font-medium"
+                whileHover={{ y: -2 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                <Search className="h-4 w-4" />
+                <span>Search</span>
+              </motion.a>
+            </motion.div>
+          )}
           <motion.div
             className="flex items-center space-x-4"
             initial={{ opacity: 0, x: 20 }}
@@ -94,27 +100,29 @@ export function NavBar() {
         </div>
       </div>
 
-      <motion.div
-        className="md:hidden border-t border-gray-200/50 dark:border-gray-700/50 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md"
-        initial={{ height: 0, opacity: 0 }}
-        animate={{ height: 0, opacity: 0 }}
-        transition={{ duration: 0.3 }}
-      >
-        <div className="px-4 py-2 space-y-2">
-          <a href="/home" className="flex items-center space-x-3 px-3 py-2 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
-            <Home className="h-4 w-4" />
-            <span>Home</span>
-          </a>
-          <a href="#search" className="flex items-center space-x-3 px-3 py-2 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
-            <Search className="h-4 w-4" />
-            <span>Search</span>
-          </a>
-          <a href="#profile" className="flex items-center space-x-3 px-3 py-2 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
-            <User className="h-4 w-4" />
-            <span>Profile</span>
-          </a>
-        </div>
-      </motion.div>
+      {!isAuthPage && (
+        <motion.div
+          className="md:hidden border-t border-gray-200/50 dark:border-gray-700/50 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md"
+          initial={{ height: 0, opacity: 0 }}
+          animate={{ height: 0, opacity: 0 }}
+          transition={{ duration: 0.3 }}
+        >
+          <div className="px-4 py-2 space-y-2">
+            <a href="/home" className="flex items-center space-x-3 px-3 py-2 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+              <Home className="h-4 w-4" />
+              <span>Home</span>
+            </a>
+            <a href="#search" className="flex items-center space-x-3 px-3 py-2 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+              <Search className="h-4 w-4" />
+              <span>Search</span>
+            </a>
+            <a href="#profile" className="flex items-center space-x-3 px-3 py-2 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+              <User className="h-4 w-4" />
+              <span>Profile</span>
+            </a>
+          </div>
+        </motion.div>
+      )}
     </motion.nav>
   )
 }
