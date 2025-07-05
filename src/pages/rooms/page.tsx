@@ -80,6 +80,7 @@ export const Rooms = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingProgress, setProcessingProgress] = useState(0);
   const [currentOperation, setCurrentOperation] = useState<'save-analyze' | 'save-only' | null>(null);
+  const [showAnalysisResults, setShowAnalysisResults] = useState(false);
   const [analyzingVideos, setAnalyzingVideos] = useState<Set<string>>(new Set());
   const [videoAnalysis, setVideoAnalysis] = useState<{ [key: string]: { items: string[], missingItems: string[] } }>({});
   const [newRoom, setNewRoom] = useState({
@@ -250,6 +251,7 @@ export const Rooms = () => {
       setIsProcessing(true);
       setProcessingProgress(0);
       setCurrentOperation('save-analyze');
+      setShowAnalysisResults(false); // Hide results during processing
 
       // Clear any existing analysis results
       setVideoAnalysis({});
@@ -271,37 +273,67 @@ export const Rooms = () => {
       // Immediately add all videos to analyzing set so individual loaders appear right away
       setAnalyzingVideos(new Set(allVideos));
 
-      // Step 1: Saving videos (simulate saving process)
-      console.log('Step 1: Saving videos...');
+      // Step 1: Initial setup and preparation (0-15%)
+      console.log('Step 1: Initial setup...');
+      setProcessingProgress(5);
+      await new Promise(resolve => setTimeout(resolve, 300));
       setProcessingProgress(10);
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      setProcessingProgress(20);
-      console.log('Saving complete');
+      await new Promise(resolve => setTimeout(resolve, 200));
+      setProcessingProgress(15);
+      console.log('Setup complete');
 
-      // Step 2: Analyze all videos sequentially (don't save to room yet)
-      console.log('Step 2: Starting video analysis...');
+      // Step 2: Saving videos to temporary storage (15-25%)
+      console.log('Step 2: Saving videos to temporary storage...');
+      setProcessingProgress(18);
+      await new Promise(resolve => setTimeout(resolve, 400));
+      setProcessingProgress(22);
+      await new Promise(resolve => setTimeout(resolve, 300));
+      setProcessingProgress(25);
+      console.log('Temporary save complete');
+
+      // Step 3: Analyze all videos sequentially (25-95%)
+      console.log('Step 3: Starting video analysis...');
+      const analysisProgressRange = 70; // 25% to 95% = 70% range
+      const progressPerVideo = analysisProgressRange / allVideos.length;
+
       for (let i = 0; i < allVideos.length; i++) {
         console.log(`Analyzing video ${i + 1}/${allVideos.length}`);
 
-        // Update progress before starting analysis
-        const preAnalysisProgress = 20 + (i / allVideos.length) * 80;
-        console.log(`Before analysis ${i + 1}: Progress = ${preAnalysisProgress}%`);
-        setProcessingProgress(preAnalysisProgress);
+        // Start of video analysis
+        const videoStartProgress = 25 + (i * progressPerVideo);
+        console.log(`Video ${i + 1} start progress: ${Math.round(videoStartProgress)}%`);
+        setProcessingProgress(Math.round(videoStartProgress));
+        await new Promise(resolve => setTimeout(resolve, 200));
 
+        // Mid-analysis progress updates
+        const midProgress1 = videoStartProgress + (progressPerVideo * 0.3);
+        console.log(`Video ${i + 1} mid progress 1: ${Math.round(midProgress1)}%`);
+        setProcessingProgress(Math.round(midProgress1));
+        await new Promise(resolve => setTimeout(resolve, 800));
+
+        const midProgress2 = videoStartProgress + (progressPerVideo * 0.6);
+        console.log(`Video ${i + 1} mid progress 2: ${Math.round(midProgress2)}%`);
+        setProcessingProgress(Math.round(midProgress2));
+        await new Promise(resolve => setTimeout(resolve, 600));
+
+        // Complete video analysis
         await analyzeVideoWithAI(allVideos[i], i);
 
-        // Calculate progress: 20% (saving) + 80% (analysis)
-        const analysisProgress = ((i + 1) / allVideos.length) * 80;
-        const totalProgress = 20 + analysisProgress;
-        console.log(`After analysis ${i + 1}: Analysis progress = ${analysisProgress}%, Total progress = ${totalProgress}%`);
-        setProcessingProgress(totalProgress);
+        const videoEndProgress = 25 + ((i + 1) * progressPerVideo);
+        console.log(`Video ${i + 1} end progress: ${Math.round(videoEndProgress)}%`);
+        setProcessingProgress(Math.round(videoEndProgress));
 
-        // Add a small delay to ensure state updates are visible
-        await new Promise(resolve => setTimeout(resolve, 100));
+        // Small delay between videos
+        await new Promise(resolve => setTimeout(resolve, 300));
       }
 
-      // Step 3: Only after all analysis is complete, save videos to room
-      console.log('Step 3: Saving videos to room...');
+      // Ensure we reach 95% after all videos are analyzed
+      console.log('All videos analyzed, setting progress to 95%');
+      setProcessingProgress(95);
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // Save videos to room immediately after analysis
+      console.log('Saving videos to room...');
       const updatedRooms = rooms.map(room =>
         room.id === selectedRoom.id
           ? { ...room, videos: [...room.videos, ...allVideos] }
@@ -318,16 +350,17 @@ export const Rooms = () => {
       setRecordedVideos([]);
       setUploadedVideos([]);
 
-      // Show 100% completion briefly before hiding loader
-      console.log('All complete! Setting progress to 100%');
-      setProcessingProgress(100);
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Show 100% for 1 second
-
-      console.log('Hiding loader...');
+      // Hide loader immediately after AI results are ready
+      console.log('AI analysis complete, hiding loader...');
       setIsProcessing(false);
       setProcessingProgress(0);
       setCurrentOperation(null);
       setAnalyzingVideos(new Set()); // Clear analyzing videos
+
+      // Show analysis results after loader is hidden
+      setTimeout(() => {
+        setShowAnalysisResults(true);
+      }, 100);
     }
   };
 
@@ -352,18 +385,50 @@ export const Rooms = () => {
       const allVideos = [...recordedVideos, ...uploadedVideos];
       console.log(`Total videos to save: ${allVideos.length}`);
 
-      // Step 1: Saving videos (simulate saving process)
-      console.log('Step 1: Saving videos...');
-      setProcessingProgress(20);
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      setProcessingProgress(50);
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      setProcessingProgress(80);
-      await new Promise(resolve => setTimeout(resolve, 500));
-      setProcessingProgress(100);
+      // Step 1: Initial setup and validation (0-15%)
+      console.log('Step 1: Initial setup and validation...');
+      setProcessingProgress(5);
+      await new Promise(resolve => setTimeout(resolve, 200));
+      setProcessingProgress(10);
+      await new Promise(resolve => setTimeout(resolve, 300));
+      setProcessingProgress(15);
+      console.log('Setup complete');
 
-      // Step 2: Save videos to room
-      console.log('Step 2: Saving videos to room...');
+      // Step 2: Processing video files (15-45%)
+      console.log('Step 2: Processing video files...');
+      const processingSteps = 6;
+      for (let i = 0; i < processingSteps; i++) {
+        const progress = 15 + (i * 5);
+        setProcessingProgress(progress);
+        await new Promise(resolve => setTimeout(resolve, 300 + (i * 100)));
+      }
+      setProcessingProgress(45);
+      console.log('Video processing complete');
+
+      // Step 3: Preparing for storage (45-75%)
+      console.log('Step 3: Preparing for storage...');
+      setProcessingProgress(50);
+      await new Promise(resolve => setTimeout(resolve, 400));
+      setProcessingProgress(60);
+      await new Promise(resolve => setTimeout(resolve, 500));
+      setProcessingProgress(70);
+      await new Promise(resolve => setTimeout(resolve, 300));
+      setProcessingProgress(75);
+      console.log('Storage preparation complete');
+
+      // Step 4: Saving to room (75-95%)
+      console.log('Step 4: Saving to room...');
+      setProcessingProgress(80);
+      await new Promise(resolve => setTimeout(resolve, 400));
+      setProcessingProgress(85);
+      await new Promise(resolve => setTimeout(resolve, 300));
+      setProcessingProgress(90);
+      await new Promise(resolve => setTimeout(resolve, 200));
+      setProcessingProgress(95);
+      console.log('Save preparation complete');
+
+      // Step 5: Final save to room
+      console.log('Step 5: Final save to room...');
       const updatedRooms = rooms.map(room =>
         room.id === selectedRoom.id
           ? { ...room, videos: [...room.videos, ...allVideos] }
@@ -382,7 +447,8 @@ export const Rooms = () => {
 
       // Show 100% completion briefly before hiding loader
       console.log('Save complete! Setting progress to 100%');
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Show 100% for 1 second
+      setProcessingProgress(100);
+      await new Promise(resolve => setTimeout(resolve, 1500)); // Show 100% for 1.5 seconds
 
       console.log('Hiding loader...');
       setIsProcessing(false);
@@ -753,7 +819,7 @@ export const Rooms = () => {
                           </div>
 
                           {/* AI Analysis Results */}
-                          {analysis && (
+                          {analysis && showAnalysisResults && (
                             <motion.div
                               className="mt-3 p-4 bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 rounded-lg border border-purple-200 dark:border-purple-700"
                               initial={{ opacity: 0, y: 10 }}
@@ -857,7 +923,7 @@ export const Rooms = () => {
                           </div>
 
                           {/* AI Analysis Results */}
-                          {analysis && (
+                          {analysis && showAnalysisResults && (
                             <motion.div
                               className="mt-3 p-4 bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 rounded-lg border border-purple-200 dark:border-purple-700"
                               initial={{ opacity: 0, y: 10 }}
@@ -961,7 +1027,7 @@ export const Rooms = () => {
                           </div>
 
                           {/* AI Analysis Results */}
-                          {analysis && (
+                          {analysis && showAnalysisResults && (
                             <motion.div
                               className="mt-3 p-4 bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 rounded-lg border border-purple-200 dark:border-purple-700"
                               initial={{ opacity: 0, y: 10 }}
