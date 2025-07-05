@@ -2,8 +2,11 @@ import { Button } from '@/components/ui/button';
 import LOGO from '../../assets/logo.jpg';
 import { CreateHomeModal } from './_components/modal';
 import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router';
 
 export const Home = () => {
+  const navigate = useNavigate();
+
   const cardVariants = {
     hidden: { opacity: 0, y: 40 },
     visible: (i: number) => ({
@@ -11,6 +14,10 @@ export const Home = () => {
       y: 0,
       transition: { delay: i * 0.15, type: "spring" as const, stiffness: 60 },
     }),
+  };
+
+  const handleCardClick = (homeId: number) => {
+    navigate(`/rooms/${homeId}`);
   };
 
   return (
@@ -55,11 +62,13 @@ export const Home = () => {
         {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((_, i) => (
           <motion.div
             key={i}
-            className="group relative w-[280px] bg-gray-50 dark:bg-gray-900 rounded-2xl shadow-lg overflow-hidden border border-gray-200 dark:border-gray-700"
+            className="group relative w-[280px] bg-gray-50 dark:bg-gray-900 rounded-2xl shadow-lg overflow-hidden border border-gray-200 dark:border-gray-700 cursor-pointer"
             custom={i}
             initial="hidden"
             animate="visible"
             variants={cardVariants}
+            onClick={() => handleCardClick(i + 1)}
+            whileHover={{ y: -5, scale: 1.02 }}
           >
             <div className="relative overflow-hidden h-48">
               <motion.img
@@ -103,24 +112,25 @@ export const Home = () => {
                 <span>🚿 {i + 1} baths</span>
               </motion.div>
 
-              <div className="flex gap-3">
-                <div className="flex-1">
-                  <Button
-                    className="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg cursor-pointer"
-                    size="sm"
-                  >
-                    ✏️ Edit
-                  </Button>
-                </div>
-                <div className="flex-1">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full border-2 border-purple-300 dark:border-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:border-purple-400 dark:hover:border-purple-500 text-purple-700 dark:text-purple-300 font-semibold transition-all duration-300 rounded-xl shadow-sm hover:shadow-md cursor-pointer"
-                  >
-                    ⚖️ Compare
-                  </Button>
-                </div>
+              <div className="flex gap-2">
+                <Button
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg cursor-pointer px-2 py-1"
+                  size="sm"
+                >
+                  📬 View
+                </Button>
+                <Button
+                  className="flex-1 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold rounded-lg cursor-pointer px-2 py-1"
+                  size="sm"
+                >
+                  ✉️ Send
+                </Button>
+                <Button
+                  className="flex-1 bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold rounded-lg cursor-pointer px-2 py-1"
+                  size="sm"
+                >
+                  ✏️ Edit
+                </Button>
               </div>
             </div>
           </motion.div>

@@ -5,6 +5,7 @@ import { SignUp } from "@/pages/sign-up/page"
 import { Outlet, createBrowserRouter } from "react-router"
 import { Navigate } from "react-router";
 import { Home } from "@/pages/home/page";
+import { Rooms } from "@/pages/rooms/page";
 
 const ProtectedRoute = ({ children }: { children: react.PropsWithChildren }) => {
   const isAuthenticated = !!false
@@ -26,6 +27,10 @@ export const router = createBrowserRouter([
       {
         path: 'home',
         element: <Home />
+      },
+      {
+        path: 'rooms/:homeId',
+        element: <Rooms />
       },
     ]
   }
