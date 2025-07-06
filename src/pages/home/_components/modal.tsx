@@ -119,7 +119,7 @@ export function CreateHomeModal() {
                     <button
                       type="button"
                       onClick={handleRemoveImage}
-                      className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors"
+                      className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors cursor-pointer"
                     >
                       <X className="w-3 h-3" />
                     </button>
@@ -148,14 +148,14 @@ export function CreateHomeModal() {
           <DialogFooter className="pt-6 gap-3">
             <DialogClose asChild>
               <Button
-                className="px-4 py-2 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300"
+                className="px-4 py-2 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 cursor-pointer"
                 variant="outline"
               >
                 Cancel
               </Button>
             </DialogClose>
             <Button
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white"
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white cursor-pointer"
               type="button"
               onClick={handleSubmit}
             >

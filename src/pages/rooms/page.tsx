@@ -1,6 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useParams, Link } from 'react-router';
 import {
   Video,
@@ -11,8 +11,25 @@ import {
   Trash2,
   Camera,
   Save,
-  Download
+  Download,
+  CheckCircle
 } from 'lucide-react';
+import { extractFramesFromVideo } from '../../lib/utils';
+import {
+  createRoom,
+  getRoomsByHomeId,
+  updateRoomVideos,
+  createVideoAnalysis,
+  updateVideoAnalysisResults,
+  getCompletedAnalysesByRoomId,
+  getVideoAnalysesByRoomId,
+  testFirebaseConnection,
+  deleteRoom,
+  getHomeById,
+  type Room as FirebaseRoom,
+  type VideoAnalysis,
+  type Home as FirebaseHome
+} from '../../lib/firebaseService';
 
 interface Room {
   id: string;
@@ -20,59 +37,30 @@ interface Room {
   icon: string;
   videos: string[];
   description: string;
+  analysisResults?: { [videoUrl: string]: { items: string[]; missingItems: string[] } };
+  hasCompletedAnalysis?: boolean;
+}
+
+interface Home {
+  id: string;
+  name: string;
+  address: string;
+  imageUrl?: string;
+  hasAllRoomsAnalyzed?: boolean;
 }
 
 export const Rooms = () => {
   const { homeId } = useParams();
-  const [rooms, setRooms] = useState<Room[]>([
-    {
-      id: '1',
-      name: 'Kitchen',
-      icon: '🍳',
-      videos: [],
-      description: 'Modern kitchen with all appliances'
-    },
-    {
-      id: '2',
-      name: 'Living Room',
-      icon: '🛋️',
-      videos: [],
-      description: 'Spacious living area with natural light'
-    },
-    {
-      id: '3',
-      name: 'Master Bedroom',
-      icon: '🛏️',
-      videos: [],
-      description: 'Comfortable master suite'
-    },
-    {
-      id: '4',
-      name: 'Bathroom',
-      icon: '🚿',
-      videos: [],
-      description: 'Clean and modern bathroom'
-    },
-    {
-      id: '5',
-      name: 'Dining Room',
-      icon: '🍽️',
-      videos: [],
-      description: 'Elegant dining space'
-    },
-    {
-      id: '6',
-      name: 'Study',
-      icon: '📚',
-      videos: [],
-      description: 'Quiet workspace for productivity'
-    }
-  ]);
+  const [rooms, setRooms] = useState<Room[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [home, setHome] = useState<Home | null>(null);
 
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
 
-  const [recordedVideos, setRecordedVideos] = useState<string[]>([]);
-  const [uploadedVideos, setUploadedVideos] = useState<string[]>([]);
+  const [recordedVideos, setRecordedVideos] = useState<{ url: string; file?: File }[]>([]);
+  const [uploadedVideos, setUploadedVideos] = useState<{ url: string; file: File }[]>([]);
   const [isLiveRecording, setIsLiveRecording] = useState(false);
   const [isStartingRecording, setIsStartingRecording] = useState(false);
   const [currentRoomVideos, setCurrentRoomVideos] = useState<string[]>([]);
@@ -88,9 +76,69 @@ export const Rooms = () => {
     icon: '🏠',
     description: ''
   });
+  const [creatingRoom, setCreatingRoom] = useState(false);
+  const [testingConnection, setTestingConnection] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [createdRoomData, setCreatedRoomData] = useState<Room | null>(null);
+  const [deletingRoom, setDeletingRoom] = useState<string | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: 'info' | 'success' | 'error' } | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+
+  // Load rooms from Firebase on component mount
+  useEffect(() => {
+    const loadRooms = async () => {
+      if (!homeId) return;
+
+      try {
+        setLoading(true);
+        setError(null);
+        console.log('Loading rooms for homeId:', homeId);
+
+        // Fetch home data first
+        const homeData = await getHomeById(homeId);
+        if (homeData) {
+          setHome(homeData);
+        } else {
+          setError('Home not found');
+          setLoading(false);
+          return;
+        }
+
+        const firebaseRooms = await getRoomsByHomeId(homeId);
+        console.log('Firebase rooms loaded:', firebaseRooms);
+
+        // Convert Firebase rooms to local format and check for completed analyses
+        const roomsWithAnalysisStatus = await Promise.all(
+          firebaseRooms.map(async (firebaseRoom) => {
+            const completedAnalyses = await getCompletedAnalysesByRoomId(firebaseRoom.id);
+            const hasCompletedAnalysis = completedAnalyses.length > 0;
+
+            return {
+              id: firebaseRoom.id,
+              name: firebaseRoom.name,
+              icon: firebaseRoom.icon,
+              videos: firebaseRoom.videos,
+              description: firebaseRoom.description,
+              hasCompletedAnalysis
+            };
+          })
+        );
+
+        console.log('Rooms with analysis status:', roomsWithAnalysisStatus);
+        setRooms(roomsWithAnalysisStatus);
+      } catch (error) {
+        console.error('Error loading rooms:', error);
+        setError(`Failed to load rooms: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadRooms();
+  }, [homeId]);
 
   const startLiveRecording = async () => {
     setIsStartingRecording(true);
@@ -118,7 +166,9 @@ export const Rooms = () => {
       mediaRecorder.onstop = () => {
         const blob = new Blob(chunksRef.current, { type: 'video/webm' });
         const videoUrl = URL.createObjectURL(blob);
-        setRecordedVideos(prev => [...prev, videoUrl]);
+        // Convert blob to File for Cloudinary upload
+        const videoFile = new File([blob], `recorded-video-${Date.now()}.webm`, { type: 'video/webm' });
+        setRecordedVideos(prev => [...prev, { url: videoUrl, file: videoFile }]);
         setIsLiveRecording(false);
       };
 
@@ -126,7 +176,6 @@ export const Rooms = () => {
       setIsLiveRecording(true);
       setIsStartingRecording(false);
     } catch (error) {
-      console.error('Error accessing camera:', error);
       setIsStartingRecording(false);
     }
   };
@@ -146,86 +195,187 @@ export const Rooms = () => {
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
-    if (files) {
-      Array.from(files).forEach((file) => {
-        const videoUrl = URL.createObjectURL(file);
-        setUploadedVideos(prev => [...prev, videoUrl]);
-      });
+    if (files && files.length > 0) {
+      // Only keep the latest uploaded video
+      const file = files[0];
+      const videoUrl = URL.createObjectURL(file);
+      setUploadedVideos([{ url: videoUrl, file: file }]);
+      setRecordedVideos([]); // Clear recorded videos
+      // Do NOT clear analysis results here
     }
   };
 
   const removeVideo = (index: number, type: 'recorded' | 'uploaded') => {
     if (type === 'recorded') {
-      setRecordedVideos(prev => {
-        const updatedVideos = prev.filter((_, i) => i !== index);
-        // Clean up analysis for the deleted video
-        const deletedVideo = prev[index];
-        if (deletedVideo) {
-          const analysisKey = deletedVideo;
-          setVideoAnalysis(prevAnalysis => {
-            const newAnalysis = { ...prevAnalysis };
-            delete newAnalysis[analysisKey];
-            return newAnalysis;
-          });
-        }
-        return updatedVideos;
+      const videoToRemove = recordedVideos[index];
+      setRecordedVideos(prev => prev.filter((_, i) => i !== index));
+
+      // Clear analysis results for this video
+      setVideoAnalysis(prev => {
+        const newAnalysis = { ...prev };
+        delete newAnalysis[videoToRemove.url];
+        return newAnalysis;
       });
     } else {
-      setUploadedVideos(prev => {
-        const updatedVideos = prev.filter((_, i) => i !== index);
-        // Clean up analysis for the deleted video
-        const deletedVideo = prev[index];
-        if (deletedVideo) {
-          const analysisKey = deletedVideo;
-          setVideoAnalysis(prevAnalysis => {
-            const newAnalysis = { ...prevAnalysis };
-            delete newAnalysis[analysisKey];
-            return newAnalysis;
-          });
-        }
-        return updatedVideos;
+      const videoToRemove = uploadedVideos[index];
+      setUploadedVideos(prev => prev.filter((_, i) => i !== index));
+
+      // Clear analysis results for this video
+      setVideoAnalysis(prev => {
+        const newAnalysis = { ...prev };
+        delete newAnalysis[videoToRemove.url];
+        return newAnalysis;
       });
     }
   };
 
-  const analyzeVideoWithAI = async (videoUrl: string, videoIndex: number) => {
-    try {
-      // Video is already added to analyzing set at the start of processing
-      // Just perform the analysis
-      await new Promise(resolve => setTimeout(resolve, 10000));
+  const uploadToCloudinary = async (file: File): Promise<string> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('upload_preset', import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET || 'ml_default');
+    formData.append('cloud_name', import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || 'your-cloud-name');
 
-      // Mock AI analysis results with missing items - replace with actual AI API call
-      const mockAnalysisResults = [
-        {
-          items: ['Sofa', 'Coffee Table', 'TV', 'Lamp', 'Plant', 'Rug'],
-          missingItems: ['Bookshelf', 'Curtains', 'Side Table', 'Artwork']
-        },
-        {
-          items: ['Bed', 'Nightstand', 'Mirror', 'Lamp', 'Pillows'],
-          missingItems: ['Blanket', 'Wardrobe', 'Window', 'Rug', 'Desk']
-        },
-        {
-          items: ['Refrigerator', 'Stove', 'Microwave', 'Sink', 'Cabinets'],
-          missingItems: ['Dishes', 'Utensils', 'Countertop', 'Dishwasher', 'Pantry']
-        },
-        {
-          items: ['Toilet', 'Sink', 'Mirror', 'Shower', 'Towel'],
-          missingItems: ['Toiletries', 'Tiles', 'Lighting', 'Storage Cabinet', 'Bath Mat']
-        },
-        {
-          items: ['Dining Table', 'Chairs', 'Chandelier', 'Sideboard'],
-          missingItems: ['Artwork', 'Plants', 'Curtains', 'Flooring', 'Tableware']
+    // Determine if it's an image or video based on file type
+    const isImage = file.type.startsWith('image/');
+    const resourceType = isImage ? 'image' : 'video';
+
+    const response = await fetch(`https://api.cloudinary.com/v1_1/${import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || 'your-cloud-name'}/${resourceType}/upload`, {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to upload to Cloudinary: ${response.status} - ${errorText}`);
+    }
+
+    const data = await response.json();
+    return data.secure_url;
+  };
+
+  const analyzeVideoWithAI = async (videoUrl: string, videoIndex: number, videoFile?: File, cloudinaryUrl?: string) => {
+    try {
+      let frameImageUrls: string[] = [];
+
+      // If we have a video file, extract frames and upload them to Cloudinary
+      if (videoFile) {
+        const frames = await extractFramesFromVideo(videoFile, 2); // every 2 seconds
+
+        // Upload each frame to Cloudinary
+        for (let i = 0; i < frames.length; i++) {
+          const frameFile = new File([frames[i]], `frame_${i}.jpg`, { type: 'image/jpeg' });
+          const url = await uploadToCloudinary(frameFile);
+          frameImageUrls.push(url);
         }
+      } else {
+        // fallback: treat the video URL as a single image (not recommended)
+        frameImageUrls = [cloudinaryUrl || videoUrl];
+      }
+
+      // Analyze with OpenAI
+      const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
+      if (!apiKey) {
+        throw new Error('OpenAI API key is missing. Please check your environment variables.');
+      }
+
+      // Prepare OpenAI message content
+      const openaiContent = [
+        {
+          type: 'text',
+          text: 'Please analyze these video frames and list all the items, furniture, appliances, and objects you can see. Focus on items that would be relevant for a home or room analysis.'
+        },
+        ...frameImageUrls.map(url => ({
+          type: 'image_url',
+          image_url: { url }
+        }))
       ];
 
-      // Use videoUrl as the key to make it stable across different indices
-      const analysisKey = videoUrl;
-      const randomResult = mockAnalysisResults[Math.floor(Math.random() * mockAnalysisResults.length)];
+      const res = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "gpt-4o",
+          messages: [
+            {
+              role: "system",
+              content: `You are an expert at analyzing video content and identifying objects, items, and elements present in videos. \n\nYour task is to watch the provided video frames and create a comprehensive list of all visible items, objects, furniture, appliances, decorations, and any other notable elements you can identify.\n\nPlease provide your response in the following format:\n- List each item on a separate line\n- Be specific and descriptive\n- Include furniture, electronics, decorations, appliances, etc.\n- Mention the approximate location or context if relevant\n- Focus on items that would be important for real estate or home analysis\n\nFormat your response as a clean list with each item clearly described.`,
+            },
+            {
+              role: "user",
+              content: openaiContent,
+            },
+          ],
+          max_tokens: 1000,
+        }),
+      });
+
+      if (!res.ok) {
+        const errorText = await res.text();
+        throw new Error(`OpenAI API error: ${res.status} - ${errorText}`);
+      }
+
+      const data = await res.json();
+
+      if (data.error) {
+        throw new Error(data.error.message);
+      }
+
+      const analysisResult = data.choices?.[0]?.message?.content || "No items detected in the video.";
+
+      // Parse the results to extract items
+      const lines = analysisResult.split('\n').filter((line: string) => line.trim());
+      const items: string[] = [];
+
+      lines.forEach((line: string) => {
+        if (line.includes('-') || line.includes('•') || line.includes('*')) {
+          const item = line.replace(/^[-•*]\s*/, '').trim();
+          if (item) items.push(item);
+        } else if (line.match(/^\d+\./)) {
+          const item = line.replace(/^\d+\.\s*/, '').trim();
+          if (item) items.push(item);
+        } else if (line.trim() && !line.toLowerCase().includes('difference') && !line.toLowerCase().includes('image')) {
+          items.push(line.trim());
+        }
+      });
+
+      // Use a more reliable key system - use the Cloudinary URL as the key for persistence
+      const analysisKey = cloudinaryUrl || videoUrl;
+
+      const analysisData = {
+        items: items,
+        missingItems: [] // Keep empty array for compatibility
+      };
 
       setVideoAnalysis(prev => ({
         ...prev,
-        [analysisKey]: randomResult
+        [analysisKey]: analysisData
       }));
+
+      // Save analysis results to Firebase if we have a selected room
+      if (selectedRoom) {
+        try {
+          // Create video analysis record in Firebase
+          const firebaseAnalysisId = await createVideoAnalysis(selectedRoom.id, videoUrl, cloudinaryUrl);
+
+          // Update with analysis results
+          await updateVideoAnalysisResults(firebaseAnalysisId, items, [], cloudinaryUrl);
+
+          // Update room's analysis status
+          setRooms(prev => prev.map(room =>
+            room.id === selectedRoom.id
+              ? { ...room, hasCompletedAnalysis: true }
+              : room
+          ));
+
+          // Also save to localStorage for backward compatibility using Cloudinary URL as key
+          saveAnalysisResults(selectedRoom.id, analysisKey, analysisData);
+        } catch (error) {
+          console.error('Error saving analysis to Firebase:', error);
+        }
+      }
 
       // Remove this specific video from analyzing set when it's done
       setAnalyzingVideos(prev => {
@@ -235,26 +385,24 @@ export const Rooms = () => {
       });
 
     } catch (error) {
-      console.error('Error analyzing video:', error);
       // Remove video from analyzing set on error too
       setAnalyzingVideos(prev => {
         const newSet = new Set(prev);
         newSet.delete(videoUrl);
         return newSet;
       });
+      throw error;
     }
   };
 
   const saveVideosToRoom = async () => {
     if (selectedRoom) {
-      console.log('Starting save process...');
       setIsProcessing(true);
       setProcessingProgress(0);
       setCurrentOperation('save-analyze');
-      setShowAnalysisResults(false); // Hide results during processing
 
-      // Clear any existing analysis results
-      setVideoAnalysis({});
+      // Clear any existing analysis results completely
+      clearAllAnalysisResults();
 
       setTimeout(() => {
         const loaderElement = document.querySelector('[data-loader="true"]');
@@ -267,60 +415,79 @@ export const Rooms = () => {
         }
       }, 50);
 
-      const allVideos = [...recordedVideos, ...uploadedVideos];
-      console.log(`Total videos to process: ${allVideos.length}`);
+      // Combine all videos with their file objects
+      const allVideos = [
+        ...recordedVideos.map(v => ({ url: v.url, file: v.file, type: 'recorded' as const })),
+        ...uploadedVideos.map(v => ({ url: v.url, file: v.file, type: 'uploaded' as const }))
+      ];
+
+      const allVideoUrls = allVideos.map(v => v.url);
 
       // Immediately add all videos to analyzing set so individual loaders appear right away
-      setAnalyzingVideos(new Set(allVideos));
+      setAnalyzingVideos(new Set(allVideoUrls));
 
       // Step 1: Initial setup and preparation (0-15%)
-      console.log('Step 1: Initial setup...');
       setProcessingProgress(5);
       await new Promise(resolve => setTimeout(resolve, 300));
       setProcessingProgress(10);
       await new Promise(resolve => setTimeout(resolve, 200));
       setProcessingProgress(15);
-      console.log('Setup complete');
 
-      // Step 2: Saving videos to temporary storage (15-25%)
-      console.log('Step 2: Saving videos to temporary storage...');
+      // Step 2: Upload videos to Cloudinary (15-25%)
       setProcessingProgress(18);
-      await new Promise(resolve => setTimeout(resolve, 400));
-      setProcessingProgress(22);
-      await new Promise(resolve => setTimeout(resolve, 300));
+      const cloudinaryUrls: string[] = [];
+
+      for (let i = 0; i < allVideos.length; i++) {
+        const video = allVideos[i];
+        if (video.file) {
+          try {
+            const cloudinaryUrl = await uploadToCloudinary(video.file);
+            cloudinaryUrls.push(cloudinaryUrl);
+            console.log(`Video ${i + 1} uploaded to Cloudinary:`, cloudinaryUrl);
+          } catch (error) {
+            console.error(`Failed to upload video ${i + 1} to Cloudinary:`, error);
+            // Fallback to original URL if Cloudinary upload fails
+            cloudinaryUrls.push(video.url);
+          }
+        } else {
+          // If no file object, use original URL
+          cloudinaryUrls.push(video.url);
+        }
+
+        // Update progress
+        const progress = 18 + ((i + 1) / allVideos.length) * 7;
+        setProcessingProgress(Math.round(progress));
+        await new Promise(resolve => setTimeout(resolve, 200));
+      }
+
       setProcessingProgress(25);
-      console.log('Temporary save complete');
 
       // Step 3: Analyze all videos sequentially (25-95%)
-      console.log('Step 3: Starting video analysis...');
       const analysisProgressRange = 70; // 25% to 95% = 70% range
       const progressPerVideo = analysisProgressRange / allVideos.length;
 
       for (let i = 0; i < allVideos.length; i++) {
-        console.log(`Analyzing video ${i + 1}/${allVideos.length}`);
+        const video = allVideos[i];
+        const cloudinaryUrl = cloudinaryUrls[i];
 
         // Start of video analysis
         const videoStartProgress = 25 + (i * progressPerVideo);
-        console.log(`Video ${i + 1} start progress: ${Math.round(videoStartProgress)}%`);
         setProcessingProgress(Math.round(videoStartProgress));
         await new Promise(resolve => setTimeout(resolve, 200));
 
         // Mid-analysis progress updates
         const midProgress1 = videoStartProgress + (progressPerVideo * 0.3);
-        console.log(`Video ${i + 1} mid progress 1: ${Math.round(midProgress1)}%`);
         setProcessingProgress(Math.round(midProgress1));
         await new Promise(resolve => setTimeout(resolve, 800));
 
         const midProgress2 = videoStartProgress + (progressPerVideo * 0.6);
-        console.log(`Video ${i + 1} mid progress 2: ${Math.round(midProgress2)}%`);
         setProcessingProgress(Math.round(midProgress2));
         await new Promise(resolve => setTimeout(resolve, 600));
 
-        // Complete video analysis
-        await analyzeVideoWithAI(allVideos[i], i);
+        // Complete video analysis with file object and Cloudinary URL
+        await analyzeVideoWithAI(video.url, i, video.file, cloudinaryUrl);
 
         const videoEndProgress = 25 + ((i + 1) * progressPerVideo);
-        console.log(`Video ${i + 1} end progress: ${Math.round(videoEndProgress)}%`);
         setProcessingProgress(Math.round(videoEndProgress));
 
         // Small delay between videos
@@ -328,22 +495,27 @@ export const Rooms = () => {
       }
 
       // Ensure we reach 95% after all videos are analyzed
-      console.log('All videos analyzed, setting progress to 95%');
       setProcessingProgress(95);
       await new Promise(resolve => setTimeout(resolve, 500));
 
-      // Save videos to room immediately after analysis
-      console.log('Saving videos to room...');
-      const updatedRooms = rooms.map(room =>
-        room.id === selectedRoom.id
-          ? { ...room, videos: [...room.videos, ...allVideos] }
-          : room
-      );
-      setRooms(updatedRooms);
-      const updatedSelectedRoom = updatedRooms.find(room => room.id === selectedRoom.id);
-      if (updatedSelectedRoom) {
-        setSelectedRoom(updatedSelectedRoom);
-        setCurrentRoomVideos(updatedSelectedRoom.videos);
+      // Save Cloudinary URLs to room in Firebase immediately after analysis
+      try {
+        await updateRoomVideos(selectedRoom.id, [...selectedRoom.videos, ...cloudinaryUrls]);
+
+        // Update local state with Cloudinary URLs
+        const updatedRooms = rooms.map(room =>
+          room.id === selectedRoom.id
+            ? { ...room, videos: [...room.videos, ...cloudinaryUrls] }
+            : room
+        );
+        setRooms(updatedRooms);
+        const updatedSelectedRoom = updatedRooms.find(room => room.id === selectedRoom.id);
+        if (updatedSelectedRoom) {
+          setSelectedRoom(updatedSelectedRoom);
+          setCurrentRoomVideos(updatedSelectedRoom.videos);
+        }
+      } catch (error) {
+        console.error('Error saving videos to Firebase:', error);
       }
 
       // Clear temporary videos immediately after saving to room
@@ -351,11 +523,9 @@ export const Rooms = () => {
       setUploadedVideos([]);
 
       // Hide loader immediately after AI results are ready
-      console.log('AI analysis complete, hiding loader...');
       setIsProcessing(false);
       setProcessingProgress(0);
       setCurrentOperation(null);
-      setAnalyzingVideos(new Set()); // Clear analyzing videos
 
       // Show analysis results after loader is hidden
       setTimeout(() => {
@@ -364,9 +534,145 @@ export const Rooms = () => {
     }
   };
 
+  // Function to save analysis results to localStorage
+  const saveAnalysisResults = (roomId: string, videoUrl: string, analysis: { items: string[]; missingItems: string[] }) => {
+    const storageKey = `room_analysis_${roomId}`;
+    const existingResults = JSON.parse(localStorage.getItem(storageKey) || '{}');
+    existingResults[videoUrl] = analysis;
+    localStorage.setItem(storageKey, JSON.stringify(existingResults));
+  };
+
+  // Function to load analysis results from localStorage
+  const loadAnalysisResults = (roomId: string) => {
+    const storageKey = `room_analysis_${roomId}`;
+    const results = JSON.parse(localStorage.getItem(storageKey) || '{}');
+    return results;
+  };
+
+  // Function to clear all analysis results
+  const clearAllAnalysisResults = () => {
+    setVideoAnalysis({});
+    setShowAnalysisResults(false);
+  };
+
   const saveVideosOnly = async () => {
     if (selectedRoom) {
-      console.log('Starting save only process...');
+      setIsProcessing(true);
+      setProcessingProgress(0);
+      setCurrentOperation('save-only');
+
+      // Clear any existing analysis results since we're not analyzing
+      clearAllAnalysisResults();
+
+      setTimeout(() => {
+        const loaderElement = document.querySelector('[data-loader="true"]');
+        if (loaderElement) {
+          loaderElement.scrollIntoView({
+            behavior: 'smooth',
+            block: 'center',
+            inline: 'nearest'
+          });
+        }
+      }, 50);
+
+      // Combine all videos with their file objects
+      const allVideos = [
+        ...recordedVideos.map(v => ({ url: v.url, file: v.file, type: 'recorded' as const })),
+        ...uploadedVideos.map(v => ({ url: v.url, file: v.file, type: 'uploaded' as const }))
+      ];
+
+      const allVideoUrls = allVideos.map(v => v.url);
+
+      // Step 1: Initial setup and validation (0-15%)
+      setProcessingProgress(5);
+      await new Promise(resolve => setTimeout(resolve, 200));
+      setProcessingProgress(10);
+      await new Promise(resolve => setTimeout(resolve, 300));
+      setProcessingProgress(15);
+
+      // Step 2: Upload videos to Cloudinary (15-45%)
+      setProcessingProgress(18);
+      const cloudinaryUrls: string[] = [];
+
+      for (let i = 0; i < allVideos.length; i++) {
+        const video = allVideos[i];
+        if (video.file) {
+          try {
+            const cloudinaryUrl = await uploadToCloudinary(video.file);
+            cloudinaryUrls.push(cloudinaryUrl);
+            console.log(`Video ${i + 1} uploaded to Cloudinary:`, cloudinaryUrl);
+          } catch (error) {
+            console.error(`Failed to upload video ${i + 1} to Cloudinary:`, error);
+            // Fallback to original URL if Cloudinary upload fails
+            cloudinaryUrls.push(video.url);
+          }
+        } else {
+          // If no file object, use original URL
+          cloudinaryUrls.push(video.url);
+        }
+
+        // Update progress
+        const progress = 18 + ((i + 1) / allVideos.length) * 27;
+        setProcessingProgress(Math.round(progress));
+        await new Promise(resolve => setTimeout(resolve, 300 + (i * 100)));
+      }
+      setProcessingProgress(45);
+
+      // Step 3: Preparing for storage (45-75%)
+      setProcessingProgress(50);
+      await new Promise(resolve => setTimeout(resolve, 400));
+      setProcessingProgress(60);
+      await new Promise(resolve => setTimeout(resolve, 500));
+      setProcessingProgress(70);
+      await new Promise(resolve => setTimeout(resolve, 300));
+      setProcessingProgress(75);
+
+      // Step 4: Saving to room (75-95%)
+      setProcessingProgress(80);
+      await new Promise(resolve => setTimeout(resolve, 400));
+      setProcessingProgress(85);
+      await new Promise(resolve => setTimeout(resolve, 300));
+      setProcessingProgress(90);
+      await new Promise(resolve => setTimeout(resolve, 200));
+      setProcessingProgress(95);
+
+      // Step 5: Final save to room in Firebase
+      try {
+        await updateRoomVideos(selectedRoom.id, [...selectedRoom.videos, ...cloudinaryUrls]);
+
+        // Update local state with Cloudinary URLs
+        const updatedRooms = rooms.map(room =>
+          room.id === selectedRoom.id
+            ? { ...room, videos: [...room.videos, ...cloudinaryUrls] }
+            : room
+        );
+        setRooms(updatedRooms);
+        const updatedSelectedRoom = updatedRooms.find(room => room.id === selectedRoom.id);
+        if (updatedSelectedRoom) {
+          setSelectedRoom(updatedSelectedRoom);
+          setCurrentRoomVideos(updatedSelectedRoom.videos);
+        }
+      } catch (error) {
+        console.error('Error saving videos to Firebase:', error);
+      }
+
+      // Clear temporary videos immediately after saving to room
+      setRecordedVideos([]);
+      setUploadedVideos([]);
+
+      // Show 100% completion briefly before hiding loader
+      setProcessingProgress(100);
+      await new Promise(resolve => setTimeout(resolve, 1500)); // Show 100% for 1.5 seconds
+
+      setIsProcessing(false);
+      setProcessingProgress(0);
+      setCurrentOperation(null);
+    }
+  };
+
+  // New function to save videos after AI analysis is completed
+  const saveAfterAnalysis = async () => {
+    if (selectedRoom) {
       setIsProcessing(true);
       setProcessingProgress(0);
       setCurrentOperation('save-only');
@@ -382,82 +688,83 @@ export const Rooms = () => {
         }
       }, 50);
 
-      const allVideos = [...recordedVideos, ...uploadedVideos];
-      console.log(`Total videos to save: ${allVideos.length}`);
+      // Combine all videos with their file objects
+      const allVideos = [
+        ...recordedVideos.map(v => ({ url: v.url, file: v.file, type: 'recorded' as const })),
+        ...uploadedVideos.map(v => ({ url: v.url, file: v.file, type: 'uploaded' as const }))
+      ];
 
-      // Step 1: Initial setup and validation (0-15%)
-      console.log('Step 1: Initial setup and validation...');
-      setProcessingProgress(5);
-      await new Promise(resolve => setTimeout(resolve, 200));
+      // Step 1: Upload videos to Cloudinary (0-50%)
       setProcessingProgress(10);
-      await new Promise(resolve => setTimeout(resolve, 300));
-      setProcessingProgress(15);
-      console.log('Setup complete');
+      const cloudinaryUrls: string[] = [];
 
-      // Step 2: Processing video files (15-45%)
-      console.log('Step 2: Processing video files...');
-      const processingSteps = 6;
-      for (let i = 0; i < processingSteps; i++) {
-        const progress = 15 + (i * 5);
-        setProcessingProgress(progress);
-        await new Promise(resolve => setTimeout(resolve, 300 + (i * 100)));
+      for (let i = 0; i < allVideos.length; i++) {
+        const video = allVideos[i];
+        if (video.file) {
+          try {
+            const cloudinaryUrl = await uploadToCloudinary(video.file);
+            cloudinaryUrls.push(cloudinaryUrl);
+            console.log(`Video ${i + 1} uploaded to Cloudinary:`, cloudinaryUrl);
+          } catch (error) {
+            console.error(`Failed to upload video ${i + 1} to Cloudinary:`, error);
+            cloudinaryUrls.push(video.url);
+          }
+        } else {
+          cloudinaryUrls.push(video.url);
+        }
+
+        const progress = 10 + ((i + 1) / allVideos.length) * 40;
+        setProcessingProgress(Math.round(progress));
+        await new Promise(resolve => setTimeout(resolve, 200));
       }
-      setProcessingProgress(45);
-      console.log('Video processing complete');
 
-      // Step 3: Preparing for storage (45-75%)
-      console.log('Step 3: Preparing for storage...');
-      setProcessingProgress(50);
-      await new Promise(resolve => setTimeout(resolve, 400));
+      // Step 2: Save to room (50-90%)
       setProcessingProgress(60);
-      await new Promise(resolve => setTimeout(resolve, 500));
-      setProcessingProgress(70);
-      await new Promise(resolve => setTimeout(resolve, 300));
-      setProcessingProgress(75);
-      console.log('Storage preparation complete');
+      try {
+        await updateRoomVideos(selectedRoom.id, [...selectedRoom.videos, ...cloudinaryUrls]);
 
-      // Step 4: Saving to room (75-95%)
-      console.log('Step 4: Saving to room...');
-      setProcessingProgress(80);
-      await new Promise(resolve => setTimeout(resolve, 400));
-      setProcessingProgress(85);
-      await new Promise(resolve => setTimeout(resolve, 300));
-      setProcessingProgress(90);
-      await new Promise(resolve => setTimeout(resolve, 200));
-      setProcessingProgress(95);
-      console.log('Save preparation complete');
-
-      // Step 5: Final save to room
-      console.log('Step 5: Final save to room...');
-      const updatedRooms = rooms.map(room =>
-        room.id === selectedRoom.id
-          ? { ...room, videos: [...room.videos, ...allVideos] }
-          : room
-      );
-      setRooms(updatedRooms);
-      const updatedSelectedRoom = updatedRooms.find(room => room.id === selectedRoom.id);
-      if (updatedSelectedRoom) {
-        setSelectedRoom(updatedSelectedRoom);
-        setCurrentRoomVideos(updatedSelectedRoom.videos);
+        const updatedRooms = rooms.map(room =>
+          room.id === selectedRoom.id
+            ? { ...room, videos: [...room.videos, ...cloudinaryUrls] }
+            : room
+        );
+        setRooms(updatedRooms);
+        const updatedSelectedRoom = updatedRooms.find(room => room.id === selectedRoom.id);
+        if (updatedSelectedRoom) {
+          setSelectedRoom(updatedSelectedRoom);
+          setCurrentRoomVideos(updatedSelectedRoom.videos);
+        }
+      } catch (error) {
+        console.error('Error saving videos to Firebase:', error);
       }
 
-      // Clear temporary videos immediately after saving to room
+      setProcessingProgress(90);
+
+      // Step 3: Finalize (90-100%)
+      setProcessingProgress(100);
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      // Clear temporary videos
       setRecordedVideos([]);
       setUploadedVideos([]);
 
-      // Show 100% completion briefly before hiding loader
-      console.log('Save complete! Setting progress to 100%');
-      setProcessingProgress(100);
-      await new Promise(resolve => setTimeout(resolve, 1500)); // Show 100% for 1.5 seconds
-
-      console.log('Hiding loader...');
       setIsProcessing(false);
       setProcessingProgress(0);
       setCurrentOperation(null);
+
+      // Show success message
+      setToast({
+        message: 'Videos saved successfully with AI analysis!',
+        type: 'success'
+      });
+      setTimeout(() => setToast(null), 4000);
     }
   };
 
-  const handleRoomClick = (room: Room) => {
+  const handleRoomClick = async (room: Room) => {
+    console.log('Opening room:', room);
+    console.log('Room videos:', room.videos);
+
     setSelectedRoom(room);
     setCurrentRoomVideos(room.videos);
     setRecordedVideos([]);
@@ -468,25 +775,126 @@ export const Rooms = () => {
       videoRef.current.srcObject = null;
     }
     setIsLiveRecording(false);
+
+    // Load existing analysis results from Firebase and localStorage
+    try {
+      const firebaseAnalyses = await getVideoAnalysesByRoomId(room.id);
+      console.log('Firebase analyses for room:', firebaseAnalyses);
+
+      const firebaseResults: { [videoUrl: string]: { items: string[]; missingItems: string[] } } = {};
+
+      firebaseAnalyses.forEach((analysis: VideoAnalysis) => {
+        if (analysis.status === 'completed') {
+          // Use the Cloudinary URL if available, otherwise use the original video URL
+          const keyUrl = analysis.cloudinaryUrl || analysis.videoUrl;
+          firebaseResults[keyUrl] = {
+            items: analysis.items,
+            missingItems: analysis.missingItems
+          };
+        }
+      });
+
+      console.log('Processed Firebase results:', firebaseResults);
+
+      // Also load from localStorage for backward compatibility
+      const localStorageResults = loadAnalysisResults(room.id);
+      console.log('LocalStorage results:', localStorageResults);
+
+      // Merge results (Firebase takes precedence)
+      const mergedResults = { ...localStorageResults, ...firebaseResults };
+      console.log('Merged analysis results:', mergedResults);
+
+      setVideoAnalysis(mergedResults);
+      setShowAnalysisResults(Object.keys(mergedResults).length > 0);
+    } catch (error) {
+      console.error('Error loading analysis results:', error);
+      // Fallback to localStorage only
+      const savedResults = loadAnalysisResults(room.id);
+      setVideoAnalysis(savedResults);
+      setShowAnalysisResults(Object.keys(savedResults).length > 0);
+    }
   };
 
-  const handleCreateRoom = () => {
-    if (newRoom.name.trim() && newRoom.description.trim()) {
-      const roomIcons = ['🏠', '🍳', '🛋️', '🛏️', '🚿', '🍽️', '📚', '🏃‍♂️', '🎮', '🧘‍♀️', '🏋️‍♂️', '🎨', '🎵', '🌱', '🐕'];
-      const randomIcon = roomIcons[Math.floor(Math.random() * roomIcons.length)];
+  const handleCreateRoom = async () => {
+    if (newRoom.name.trim() && newRoom.description.trim() && homeId) {
+      try {
+        setCreatingRoom(true);
+        console.log('Creating room with data:', { homeId, name: newRoom.name, description: newRoom.description });
 
-      const newRoomData: Room = {
-        id: Date.now().toString(),
-        name: newRoom.name,
-        icon: randomIcon,
-        videos: [],
-        description: newRoom.description
-      };
+        const roomIcons = ['🏠', '🍳', '🛋️', '🛏️', '🚿', '🍽️', '📚', '🏃‍♂️', '🎮', '🧘‍♀️', '🏋️‍♂️', '🎨', '🎵', '🌱', '🐕'];
+        const randomIcon = roomIcons[Math.floor(Math.random() * roomIcons.length)];
 
-      setRooms(prev => [...prev, newRoomData]);
-      console.log('New room created:', newRoomData);
-      setNewRoom({ name: '', icon: '🏠', description: '' });
-      setShowCreateRoom(false);
+        const roomData = {
+          homeId,
+          name: newRoom.name,
+          icon: randomIcon,
+          description: newRoom.description
+        };
+
+        console.log('Sending room data to Firebase:', roomData);
+        const roomId = await createRoom(roomData);
+        console.log('Room created successfully with ID:', roomId);
+
+        const newRoomData: Room = {
+          id: roomId,
+          name: newRoom.name,
+          icon: randomIcon,
+          videos: [],
+          description: newRoom.description,
+          hasCompletedAnalysis: false
+        };
+
+        setRooms(prev => [...prev, newRoomData]);
+        setNewRoom({ name: '', icon: '🏠', description: '' });
+        setShowCreateRoom(false);
+
+        // Show success modal
+        setCreatedRoomData(newRoomData);
+        setShowSuccessModal(true);
+        setError(null);
+
+        // Auto-hide success modal after 5 seconds
+        setTimeout(() => {
+          setShowSuccessModal(false);
+          setCreatedRoomData(null);
+        }, 5000);
+      } catch (error) {
+        console.error('Error creating room:', error);
+        setError(`Failed to create room: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        setSuccess(null);
+      } finally {
+        setCreatingRoom(false);
+      }
+    } else {
+      // Show toast message if required fields are missing
+      if (!newRoom.name.trim() || !newRoom.description.trim()) {
+        setToast({
+          message: 'Please fill in both room name and description!',
+          type: 'error'
+        });
+        // Auto-hide toast after 4 seconds
+        setTimeout(() => setToast(null), 4000);
+      }
+    }
+  };
+
+  const testFirebaseConnectionHandler = async () => {
+    try {
+      setTestingConnection(true);
+      const isConnected = await testFirebaseConnection();
+      if (isConnected) {
+        setSuccess('Firebase connection successful!');
+        setError(null);
+      } else {
+        setError('Firebase connection failed. Please check your configuration.');
+        setSuccess(null);
+      }
+    } catch (error) {
+      console.error('Firebase connection test error:', error);
+      setError(`Firebase connection test failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      setSuccess(null);
+    } finally {
+      setTestingConnection(false);
     }
   };
 
@@ -499,8 +907,115 @@ export const Rooms = () => {
     }),
   };
 
+  // Helper function to find analysis for a video
+  const findAnalysisForVideo = (videoUrl: string) => {
+    console.log('Finding analysis for video URL:', videoUrl);
+    console.log('Current videoAnalysis state:', videoAnalysis);
+
+    // First check current session results with exact URL
+    if (videoAnalysis[videoUrl]) {
+      console.log('Found analysis in current session:', videoAnalysis[videoUrl]);
+      return videoAnalysis[videoUrl];
+    }
+
+    // Check if this might be a Cloudinary URL and look for analysis
+    if (videoUrl.includes('cloudinary.com')) {
+      // This is already a Cloudinary URL, check for analysis
+      if (videoAnalysis[videoUrl]) {
+        console.log('Found analysis for Cloudinary URL:', videoAnalysis[videoUrl]);
+        return videoAnalysis[videoUrl];
+      }
+    }
+
+    // If not found in current session, check if we have a selected room and load from localStorage
+    if (selectedRoom) {
+      const savedResults = loadAnalysisResults(selectedRoom.id);
+      console.log('Saved results from localStorage:', savedResults);
+
+      // Check for exact match first
+      if (savedResults[videoUrl]) {
+        console.log('Found analysis in localStorage:', savedResults[videoUrl]);
+        return savedResults[videoUrl];
+      }
+
+      // If this is a Cloudinary URL, also check for any analysis results
+      if (videoUrl.includes('cloudinary.com')) {
+        // Look for any analysis result that might match this video
+        const analysisKeys = Object.keys(savedResults);
+        console.log('Looking through analysis keys:', analysisKeys);
+        for (const key of analysisKeys) {
+          if (key.includes('cloudinary.com')) {
+            console.log('Found matching Cloudinary analysis:', savedResults[key]);
+            return savedResults[key];
+          }
+        }
+      }
+    }
+
+    console.log('No analysis found for video URL:', videoUrl);
+    return null;
+  };
+
+  const handleDeleteRoom = async (roomId: string) => {
+    try {
+      setDeletingRoom(roomId);
+      console.log('Deleting room:', roomId);
+
+      await deleteRoom(roomId);
+
+      // Remove from local state
+      setRooms(prev => prev.filter(room => room.id !== roomId));
+      setShowDeleteConfirm(null);
+
+      // Show success message
+      setError(null);
+      setSuccess('Room deleted successfully!');
+
+      // Clear success message after 3 seconds
+      setTimeout(() => {
+        setSuccess(null);
+      }, 3000);
+    } catch (error) {
+      console.error('Error deleting room:', error);
+      setError(`Failed to delete room: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setDeletingRoom(null);
+    }
+  };
+
   return (
     <div className="px-4 md:px-12 pb-20 md:pb-4">
+      {/* Toast Notification */}
+      {toast && (
+        <motion.div
+          className="fixed top-4 right-4 z-[9999] max-w-sm"
+          initial={{ opacity: 0, x: 100, y: -20 }}
+          animate={{ opacity: 1, x: 0, y: 0 }}
+          exit={{ opacity: 0, x: 100, y: -20 }}
+          transition={{ duration: 0.3 }}
+        >
+          <div className={`rounded-xl p-4 shadow-lg border ${toast.type === 'info'
+            ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300'
+            : toast.type === 'success'
+              ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 text-green-700 dark:text-green-300'
+              : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-700 dark:text-red-300'
+            }`}>
+            <div className="flex items-center gap-3">
+              <span className="text-lg">
+                {toast.type === 'info' ? '💡' : toast.type === 'success' ? '✅' : '⚠️'}
+              </span>
+              <span className="text-sm font-medium">{toast.message}</span>
+              <button
+                onClick={() => setToast(null)}
+                className="ml-auto text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        </motion.div>
+      )}
+
       <motion.div
         className="flex items-center gap-4 mb-8"
         initial={{ opacity: 0, x: -30 }}
@@ -508,7 +1023,7 @@ export const Rooms = () => {
         transition={{ duration: 0.5 }}
       >
         <Link to="/home">
-          <Button variant="ghost" size="sm" className="flex items-center gap-2">
+          <Button variant="ghost" size="sm" className="flex items-center gap-2 cursor-pointer">
             <ArrowLeft className="w-4 h-4" />
             Back to Homes
           </Button>
@@ -519,7 +1034,7 @@ export const Rooms = () => {
           animate={{ opacity: 1 }}
           transition={{ delay: 0.2 }}
         >
-          🏠 Home {homeId} - Rooms
+          🏠 {home ? home.name : 'Loading...'} - Rooms
         </motion.h1>
       </motion.div>
 
@@ -529,42 +1044,167 @@ export const Rooms = () => {
         animate={{ opacity: 1, x: 0 }}
         transition={{ delay: 0.3, duration: 0.5 }}
       >
-        <Button
-          onClick={() => setShowCreateRoom(true)}
-          className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold rounded-xl px-6 py-3 flex items-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300"
-        >
-          <Plus className="w-5 h-5" />
-          Create Room
-        </Button>
+        {rooms.length > 0 && (
+          <div className="flex gap-3">
+            <Button
+              onClick={() => setShowCreateRoom(true)}
+              className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold rounded-xl px-6 py-3 flex items-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 hover:cursor-pointer"
+            >
+              <Plus className="w-5 h-5" />
+              Create Room
+            </Button>
+          </div>
+        )}
       </motion.div>
 
+      {error && (
+        <motion.div
+          className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl"
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+        >
+          <div className="flex items-center gap-2 text-red-700 dark:text-red-300">
+            <span className="text-lg">⚠️</span>
+            <span>{error}</span>
+          </div>
+        </motion.div>
+      )}
+
+      {success && (
+        <motion.div
+          className="mb-6 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl"
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+        >
+          <div className="flex items-center gap-2 text-green-700 dark:text-green-300">
+            <span className="text-lg">✅</span>
+            <span>{success}</span>
+          </div>
+        </motion.div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-        {rooms.map((room, i) => (
-          <motion.div
-            key={room.id}
-            className="group relative bg-white dark:bg-gray-800 rounded-2xl shadow-lg overflow-hidden border border-gray-200 dark:border-gray-700 cursor-pointer hover:shadow-xl transition-all duration-300"
-            custom={i}
-            initial="hidden"
-            animate="visible"
-            variants={cardVariants}
-            onClick={() => handleRoomClick(room)}
-            whileHover={{ y: -5, scale: 1.02 }}
-          >
-            <div className="p-6">
-              <div className="text-4xl mb-4">{room.icon}</div>
-              <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
-                {room.name}
-              </h3>
-              <p className="text-gray-600 dark:text-gray-400 text-sm">
-                {room.description}
-              </p>
-              <div className="mt-4 flex items-center gap-2 text-sm text-gray-500">
-                <Video className="w-4 h-4" />
-                <span>{room.videos.length} videos</span>
+        {loading ? (
+          // Loading skeleton
+          [...Array(6)].map((_, i) => (
+            <motion.div
+              key={i}
+              className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg overflow-hidden border border-gray-200 dark:border-gray-700"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.1 }}
+            >
+              <div className="p-6">
+                <div className="w-12 h-12 bg-gray-200 dark:bg-gray-700 rounded-lg mb-4 animate-pulse"></div>
+                <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded mb-2 animate-pulse"></div>
+                <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded mb-4 animate-pulse"></div>
+                <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-2/3 animate-pulse"></div>
               </div>
-            </div>
+            </motion.div>
+          ))
+        ) : rooms.length === 0 ? (
+          // No rooms message
+          <motion.div
+            className="col-span-full flex flex-col items-center justify-center py-16 px-8"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+          >
+            <div className="text-6xl mb-6">🏠</div>
+            <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-4 text-center">
+              No Rooms Yet
+            </h3>
+            <p className="text-gray-600 dark:text-gray-400 text-center mb-8 max-w-md">
+              Create your first room to start uploading videos and analyzing them with AI.
+              Each room can contain multiple videos for comprehensive analysis.
+            </p>
+            <Button
+              onClick={() => setShowCreateRoom(true)}
+              className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold rounded-xl px-8 py-4 flex items-center gap-3 shadow-lg hover:shadow-xl transition-all duration-300 text-lg hover:cursor-pointer"
+            >
+              <Plus className="w-6 h-6" />
+              Create Your First Room
+            </Button>
           </motion.div>
-        ))}
+        ) : (
+          rooms.map((room, i) => (
+            <motion.div
+              key={room.id}
+              className="group relative bg-white dark:bg-gray-800 rounded-2xl shadow-lg overflow-hidden border border-gray-200 dark:border-gray-700 cursor-pointer hover:shadow-xl transition-all duration-300"
+              custom={i}
+              initial="hidden"
+              animate="visible"
+              variants={cardVariants}
+              onClick={() => handleRoomClick(room)}
+              whileHover={{ y: -5, scale: 1.02 }}
+            >
+              {/* Completion Status Badge */}
+              {room.hasCompletedAnalysis && (
+                <motion.div
+                  className="absolute top-4 right-4 z-10"
+                  initial={{ opacity: 0, scale: 0 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 0.2 }}
+                >
+                  <div className="bg-green-500 text-white p-2 rounded-full shadow-lg">
+                    <CheckCircle className="w-5 h-5" />
+                  </div>
+                </motion.div>
+              )}
+
+              {/* Delete Button - only show if room is not analyzed */}
+              {!room.hasCompletedAnalysis && (
+                <motion.div
+                  className="absolute top-4 right-4 z-20"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowDeleteConfirm(room.id);
+                  }}
+                >
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-red-500 hover:text-red-600 p-2 rounded-full cursor-pointer"
+                    disabled={deletingRoom === room.id}
+                    title="Delete Room"
+                  >
+                    {deletingRoom === room.id ? (
+                      <motion.div
+                        animate={{ rotate: 360 }}
+                        transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                        className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full"
+                      />
+                    ) : (
+                      <Trash2 className="w-4 h-4" />
+                    )}
+                  </Button>
+                </motion.div>
+              )}
+
+              <div className="p-6">
+                <div className="text-4xl mb-4">{room.icon}</div>
+                <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+                  {room.name}
+                </h3>
+                <p className="text-gray-600 dark:text-gray-400 text-sm">
+                  {room.description}
+                </p>
+                <div className="mt-4 flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-sm text-gray-500">
+                    <Video className="w-4 h-4" />
+                    <span>{room.videos.length} videos</span>
+                  </div>
+                  {room.hasCompletedAnalysis && (
+                    <div className="flex items-center gap-1 text-sm text-green-600 dark:text-green-400">
+                      <CheckCircle className="w-4 h-4" />
+                      <span>Analyzed</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          ))
+        )}
       </div>
 
       {selectedRoom && (
@@ -583,13 +1223,14 @@ export const Rooms = () => {
           }}
         >
           <motion.div
-            className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto"
+            className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] flex flex-col"
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.9, opacity: 0 }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+            {/* Sticky Header */}
+            <div className="sticky top-0 z-10 bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm rounded-t-2xl p-6 border-b border-gray-200 dark:border-gray-700 shadow-sm">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <span className="text-3xl">{selectedRoom.icon}</span>
@@ -602,25 +1243,28 @@ export const Rooms = () => {
                     </p>
                   </div>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    setSelectedRoom(null);
-                    // Clear video stream when closing modal
-                    if (videoRef.current) {
-                      videoRef.current.srcObject = null;
-                    }
-                    setIsLiveRecording(false);
-                  }}
-                  className="text-gray-500 hover:text-gray-700"
-                >
-                  ✕
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setSelectedRoom(null);
+                      // Clear video stream when closing modal
+                      if (videoRef.current) {
+                        videoRef.current.srcObject = null;
+                      }
+                      setIsLiveRecording(false);
+                    }}
+                    className="text-gray-500 hover:text-gray-700 cursor-pointer"
+                  >
+                    ✕
+                  </Button>
+                </div>
               </div>
             </div>
 
-            <div className="p-6">
+            {/* Scrollable Content */}
+            <div className="flex-1 overflow-y-auto p-6">
 
               <div className="mb-8">
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
@@ -772,51 +1416,21 @@ export const Rooms = () => {
               </div>
               {currentRoomVideos.length > 0 && (
                 <div className="mb-8">
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                    {selectedRoom.name} Videos ({currentRoomVideos.length})
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                    <Video className="w-5 h-5" />
+                    Room Videos ({currentRoomVideos.length})
                   </h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {currentRoomVideos.map((video, index) => {
-                      const analysisKey = video;
-                      const analysis = videoAnalysis[analysisKey];
+                    {currentRoomVideos.map((videoUrl, index) => {
+                      const analysis = findAnalysisForVideo(videoUrl);
 
                       return (
                         <div key={index} className="relative group">
                           <video
-                            src={video}
+                            src={videoUrl}
                             controls
                             className="w-full h-48 bg-gray-200 dark:bg-gray-700 rounded-lg"
                           />
-                          <div className="absolute top-2 right-2 flex gap-2">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="bg-red-500 hover:bg-red-600 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:cursor-pointer"
-                              onClick={() => {
-                                // Remove from currentRoomVideos
-                                const updatedVideos = currentRoomVideos.filter((_, i) => i !== index);
-                                setCurrentRoomVideos(updatedVideos);
-                                // Update the selected room in rooms
-                                setRooms(prevRooms => prevRooms.map(room =>
-                                  room.id === selectedRoom?.id
-                                    ? { ...room, videos: updatedVideos }
-                                    : room
-                                ));
-                                // Update selectedRoom
-                                setSelectedRoom(prev => prev ? { ...prev, videos: updatedVideos } : null);
-
-                                // Clean up video analysis for the deleted video
-                                const analysisKey = video;
-                                setVideoAnalysis(prev => {
-                                  const newAnalysis = { ...prev };
-                                  delete newAnalysis[analysisKey];
-                                  return newAnalysis;
-                                });
-                              }}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </div>
 
                           {/* AI Analysis Results */}
                           {analysis && showAnalysisResults && (
@@ -838,23 +1452,7 @@ export const Rooms = () => {
                                   {(analysis.items || []).map((item: string, itemIndex: number) => (
                                     <span
                                       key={itemIndex}
-                                      className="px-2 py-1 bg-green-100 dark:bg-green-800 text-green-700 dark:text-green-300 text-xs rounded-full"
-                                    >
-                                      {item}
-                                    </span>
-                                  ))}
-                                </div>
-                              </div>
-                              {/* Missing Items */}
-                              <div>
-                                <h5 className="text-xs font-medium text-orange-700 dark:text-orange-300 mb-2 flex items-center gap-1">
-                                  ⚠️ Missing Items ({analysis.missingItems.length})
-                                </h5>
-                                <div className="flex flex-wrap gap-1">
-                                  {(analysis.missingItems || []).map((item: string, itemIndex: number) => (
-                                    <span
-                                      key={itemIndex}
-                                      className="px-2 py-1 bg-orange-100 dark:bg-orange-800 text-orange-700 dark:text-orange-300 text-xs rounded-full"
+                                      className="px-2 py-1 bg-green-100 dark:bg-green-800 text-green-700 dark:text-white text-xs rounded-full"
                                     >
                                       {item}
                                     </span>
@@ -877,19 +1475,18 @@ export const Rooms = () => {
                   </h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {recordedVideos.map((video, index) => {
-                      const analysisKey = video;
-                      const analysis = videoAnalysis[analysisKey];
+                      const analysis = findAnalysisForVideo(video.url);
 
                       return (
                         <div key={index} className="relative group">
                           <video
-                            src={video}
+                            src={video.url}
                             controls
                             className="w-full h-48 bg-gray-200 dark:bg-gray-700 rounded-lg"
                           />
 
                           {/* Analyzing overlay */}
-                          {analyzingVideos.has(video) && (
+                          {analyzingVideos.has(video.url) && (
                             <div className="absolute inset-0 bg-black/60 backdrop-blur-sm rounded-lg flex items-center justify-center">
                               <div className="text-center">
                                 <motion.div
@@ -949,22 +1546,6 @@ export const Rooms = () => {
                                   ))}
                                 </div>
                               </div>
-                              {/* Missing Items */}
-                              <div>
-                                <h5 className="text-xs font-medium text-orange-700 dark:text-orange-300 mb-2 flex items-center gap-1">
-                                  ⚠️ Missing Items ({analysis.missingItems.length})
-                                </h5>
-                                <div className="flex flex-wrap gap-1">
-                                  {(analysis.missingItems || []).map((item: string, itemIndex: number) => (
-                                    <span
-                                      key={itemIndex}
-                                      className="px-2 py-1 bg-orange-100 dark:bg-orange-800 text-orange-700 dark:text-orange-300 text-xs rounded-full"
-                                    >
-                                      {item}
-                                    </span>
-                                  ))}
-                                </div>
-                              </div>
                             </motion.div>
                           )}
                         </div>
@@ -981,19 +1562,18 @@ export const Rooms = () => {
                   </h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {uploadedVideos.map((video, index) => {
-                      const analysisKey = video;
-                      const analysis = videoAnalysis[analysisKey];
+                      const analysis = findAnalysisForVideo(video.url);
 
                       return (
                         <div key={index} className="relative group">
                           <video
-                            src={video}
+                            src={video.url}
                             controls
                             className="w-full h-48 bg-gray-200 dark:bg-gray-700 rounded-lg"
                           />
 
                           {/* Analyzing overlay */}
-                          {analyzingVideos.has(video) && (
+                          {analyzingVideos.has(video.url) && (
                             <div className="absolute inset-0 bg-black/60 backdrop-blur-sm rounded-lg flex items-center justify-center">
                               <div className="text-center">
                                 <motion.div
@@ -1047,22 +1627,6 @@ export const Rooms = () => {
                                     <span
                                       key={itemIndex}
                                       className="px-2 py-1 bg-green-100 dark:bg-green-800 text-green-700 dark:text-green-300 text-xs rounded-full"
-                                    >
-                                      {item}
-                                    </span>
-                                  ))}
-                                </div>
-                              </div>
-                              {/* Missing Items */}
-                              <div>
-                                <h5 className="text-xs font-medium text-orange-700 dark:text-orange-300 mb-2 flex items-center gap-1">
-                                  ⚠️ Missing Items ({analysis.missingItems.length})
-                                </h5>
-                                <div className="flex flex-wrap gap-1">
-                                  {(analysis.missingItems || []).map((item: string, itemIndex: number) => (
-                                    <span
-                                      key={itemIndex}
-                                      className="px-2 py-1 bg-orange-100 dark:bg-orange-800 text-orange-700 dark:text-orange-300 text-xs rounded-full"
                                     >
                                       {item}
                                     </span>
@@ -1135,10 +1699,6 @@ export const Rooms = () => {
                             }}
                           />
                         </div>
-                        {/* Debug: Show current progress value */}
-                        <div className="text-white/80 text-xs mt-2">
-                          Progress: {Math.round(processingProgress)}%
-                        </div>
                         <motion.div
                           className="text-white font-semibold"
                           animate={{ opacity: [0.7, 1, 0.7] }}
@@ -1153,7 +1713,7 @@ export const Rooms = () => {
                           transition={{ delay: 1 }}
                         >
                           {currentOperation === 'save-analyze'
-                            ? '✨ Processing videos and detecting items with AI'
+                            ? '✨ Processing videos and detecting items'
                             : '💾 Saving videos to your room'
                           }
                         </motion.div>
@@ -1161,113 +1721,171 @@ export const Rooms = () => {
                     </div>
                   ) : (
                     <div className="flex gap-4">
-                      {/* Save and Analyze Button */}
-                      <Button
-                        onClick={saveVideosToRoom}
-                        className="flex-1 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:via-indigo-700 hover:to-purple-700 text-white font-semibold flex items-center justify-center gap-3 py-4 text-lg transition-all duration-500 hover:scale-[1.01] hover:cursor-pointer shadow-xl hover:shadow-blue-500/20 rounded-2xl border border-white/20 backdrop-blur-sm relative overflow-hidden group"
-                        disabled={isProcessing}
-                      >
-                        {/* Subtle shimmer effect */}
-                        <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/15 to-transparent" />
-
-                        {/* Gentle glow effect */}
-                        <motion.div
-                          className="absolute inset-0 rounded-2xl bg-gradient-to-r from-blue-400/10 to-purple-400/10"
-                          animate={{
-                            opacity: [0.3, 0.6, 0.3]
-                          }}
-                          transition={{
-                            duration: 4,
-                            repeat: Infinity,
-                            ease: "easeInOut"
-                          }}
-                        />
-
-                        {/* Icon with subtle animation */}
-                        <motion.div
-                          className="relative z-10"
-                          whileHover={{
-                            scale: 1.1,
-                            transition: { duration: 0.3 }
-                          }}
+                      {/* Show Save button only if analysis results are available */}
+                      {showAnalysisResults && Object.keys(videoAnalysis).length > 0 ? (
+                        <Button
+                          onClick={saveAfterAnalysis}
+                          className="flex-1 bg-gradient-to-r from-green-600 via-emerald-600 to-teal-600 hover:from-green-700 hover:via-emerald-700 hover:to-teal-700 text-white font-semibold flex items-center justify-center gap-3 py-4 text-lg transition-all duration-500 hover:scale-[1.01] hover:cursor-pointer shadow-xl hover:shadow-green-500/20 rounded-2xl border border-white/20 backdrop-blur-sm relative overflow-hidden group"
+                          disabled={isProcessing}
                         >
-                          <Save className="w-5 h-5" />
-                        </motion.div>
+                          {/* Subtle shimmer effect */}
+                          <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/15 to-transparent" />
 
-                        {/* Text */}
-                        <span className="relative z-10 font-semibold text-lg">
-                          Save & Analyze
-                        </span>
+                          {/* Gentle glow effect */}
+                          <motion.div
+                            className="absolute inset-0 rounded-2xl bg-gradient-to-r from-green-400/10 to-teal-400/10"
+                            animate={{
+                              opacity: [0.3, 0.6, 0.3]
+                            }}
+                            transition={{
+                              duration: 4,
+                              repeat: Infinity,
+                              ease: "easeInOut"
+                            }}
+                          />
 
-                        {/* Simple sparkle */}
-                        <motion.div
-                          className="absolute top-2 right-4 opacity-0 group-hover:opacity-100"
-                          animate={{
-                            scale: [0, 1, 0]
-                          }}
-                          transition={{
-                            duration: 1.5,
-                            repeat: Infinity,
-                            delay: 0.5
-                          }}
-                        >
-                          ✨
-                        </motion.div>
-                      </Button>
+                          {/* Icon with subtle animation */}
+                          <motion.div
+                            className="relative z-10"
+                            whileHover={{
+                              scale: 1.1,
+                              transition: { duration: 0.3 }
+                            }}
+                          >
+                            <Save className="w-5 h-5" />
+                          </motion.div>
 
-                      {/* Save Only Button */}
-                      <Button
-                        onClick={saveVideosOnly}
-                        className="flex-1 bg-gradient-to-r from-green-600 via-emerald-600 to-teal-600 hover:from-green-700 hover:via-emerald-700 hover:to-teal-700 text-white font-semibold flex items-center justify-center gap-3 py-4 text-lg transition-all duration-500 hover:scale-[1.01] hover:cursor-pointer shadow-xl hover:shadow-green-500/20 rounded-2xl border border-white/20 backdrop-blur-sm relative overflow-hidden group"
-                        disabled={isProcessing}
-                      >
-                        {/* Subtle shimmer effect */}
-                        <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/15 to-transparent" />
+                          {/* Text */}
+                          <span className="relative z-10 font-semibold text-lg">
+                            Save with Analysis
+                          </span>
 
-                        {/* Gentle glow effect */}
-                        <motion.div
-                          className="absolute inset-0 rounded-2xl bg-gradient-to-r from-green-400/10 to-teal-400/10"
-                          animate={{
-                            opacity: [0.3, 0.6, 0.3]
-                          }}
-                          transition={{
-                            duration: 4,
-                            repeat: Infinity,
-                            ease: "easeInOut"
-                          }}
-                        />
+                          {/* Simple sparkle */}
+                          <motion.div
+                            className="absolute top-2 right-4 opacity-0 group-hover:opacity-100"
+                            animate={{
+                              scale: [0, 1, 0]
+                            }}
+                            transition={{
+                              duration: 1.5,
+                              repeat: Infinity,
+                              delay: 0.5
+                            }}
+                          >
+                            ✨
+                          </motion.div>
+                        </Button>
+                      ) : (
+                        <>
+                          {/* Save and Analyze Button */}
+                          <Button
+                            onClick={saveVideosToRoom}
+                            className="flex-1 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:via-indigo-700 hover:to-purple-700 text-white font-semibold flex items-center justify-center gap-3 py-4 text-lg transition-all duration-500 hover:scale-[1.01] hover:cursor-pointer shadow-xl hover:shadow-blue-500/20 rounded-2xl border border-white/20 backdrop-blur-sm relative overflow-hidden group"
+                            disabled={isProcessing}
+                          >
+                            {/* Subtle shimmer effect */}
+                            <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/15 to-transparent" />
 
-                        {/* Icon with subtle animation */}
-                        <motion.div
-                          className="relative z-10"
-                          whileHover={{
-                            scale: 1.1,
-                            transition: { duration: 0.3 }
-                          }}
-                        >
-                          <Download className="w-5 h-5" />
-                        </motion.div>
+                            {/* Gentle glow effect */}
+                            <motion.div
+                              className="absolute inset-0 rounded-2xl bg-gradient-to-r from-blue-400/10 to-purple-400/10"
+                              animate={{
+                                opacity: [0.3, 0.6, 0.3]
+                              }}
+                              transition={{
+                                duration: 4,
+                                repeat: Infinity,
+                                ease: "easeInOut"
+                              }}
+                            />
 
-                        {/* Text */}
-                        <span className="relative z-10 font-semibold text-lg">
-                          Save Only
-                        </span>
+                            {/* Icon with subtle animation */}
+                            <motion.div
+                              className="relative z-10"
+                              whileHover={{
+                                scale: 1.1,
+                                transition: { duration: 0.3 }
+                              }}
+                            >
+                              <Save className="w-5 h-5" />
+                            </motion.div>
 
-                        {/* Simple sparkle */}
-                        <motion.div
-                          className="absolute top-2 right-4 opacity-0 group-hover:opacity-100"
-                          animate={{
-                            scale: [0, 1, 0]
-                          }}
-                          transition={{
-                            duration: 1.5,
-                            repeat: Infinity,
-                            delay: 0.5
-                          }}
-                        >
-                          💾
-                        </motion.div>
-                      </Button>
+                            {/* Text */}
+                            <span className="relative z-10 font-semibold text-lg">
+                              Save & Analyze
+                            </span>
+
+                            {/* Simple sparkle */}
+                            <motion.div
+                              className="absolute top-2 right-4 opacity-0 group-hover:opacity-100"
+                              animate={{
+                                scale: [0, 1, 0]
+                              }}
+                              transition={{
+                                duration: 1.5,
+                                repeat: Infinity,
+                                delay: 0.5
+                              }}
+                            >
+                              ✨
+                            </motion.div>
+                          </Button>
+
+                          {/* Save Only Button */}
+                          <Button
+                            onClick={saveVideosOnly}
+                            className="flex-1 bg-gradient-to-r from-green-600 via-emerald-600 to-teal-600 hover:from-green-700 hover:via-emerald-700 hover:to-teal-700 text-white font-semibold flex items-center justify-center gap-3 py-4 text-lg transition-all duration-500 hover:scale-[1.01] hover:cursor-pointer shadow-xl hover:shadow-green-500/20 rounded-2xl border border-white/20 backdrop-blur-sm relative overflow-hidden group"
+                            disabled={isProcessing}
+                          >
+                            {/* Subtle shimmer effect */}
+                            <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/15 to-transparent" />
+
+                            {/* Gentle glow effect */}
+                            <motion.div
+                              className="absolute inset-0 rounded-2xl bg-gradient-to-r from-green-400/10 to-teal-400/10"
+                              animate={{
+                                opacity: [0.3, 0.6, 0.3]
+                              }}
+                              transition={{
+                                duration: 4,
+                                repeat: Infinity,
+                                ease: "easeInOut"
+                              }}
+                            />
+
+                            {/* Icon with subtle animation */}
+                            <motion.div
+                              className="relative z-10"
+                              whileHover={{
+                                scale: 1.1,
+                                transition: { duration: 0.3 }
+                              }}
+                            >
+                              <Download className="w-5 h-5" />
+                            </motion.div>
+
+                            {/* Text */}
+                            <span className="relative z-10 font-semibold text-lg">
+                              Save Only
+                            </span>
+
+                            {/* Simple sparkle */}
+                            <motion.div
+                              className="absolute top-2 right-4 opacity-0 group-hover:opacity-100"
+                              animate={{
+                                scale: [0, 1, 0]
+                              }}
+                              transition={{
+                                duration: 1.5,
+                                repeat: Infinity,
+                                delay: 0.5
+                              }}
+                            >
+                              💾
+                            </motion.div>
+                          </Button>
+                        </>
+                      )}
                     </div>
                   )}
                 </div>
@@ -1312,7 +1930,7 @@ export const Rooms = () => {
                   variant="ghost"
                   size="sm"
                   onClick={() => setShowCreateRoom(false)}
-                  className="text-gray-500 hover:text-gray-700"
+                  className="text-gray-500 hover:text-gray-700 cursor-pointer"
                 >
                   ✕
                 </Button>
@@ -1351,20 +1969,227 @@ export const Rooms = () => {
                   <Button
                     variant="outline"
                     onClick={() => setShowCreateRoom(false)}
-                    className="flex-1 border-2 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700"
+                    disabled={creatingRoom}
+                    className="flex-1 border-2 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer"
                   >
                     Cancel
                   </Button>
                   <Button
                     onClick={handleCreateRoom}
-                    disabled={!newRoom.name.trim() || !newRoom.description.trim()}
-                    className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold flex items-center gap-2"
+                    disabled={!newRoom.name.trim() || !newRoom.description.trim() || creatingRoom}
+                    className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold flex items-center gap-2 hover:cursor-pointer"
                   >
-                    <Save className="w-4 h-4" />
-                    Create Room
+                    {creatingRoom ? (
+                      <>
+                        <motion.div
+                          animate={{ rotate: 360 }}
+                          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                          className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full hover:cursor-pointer"
+                        />
+                        Creating...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-4 h-4 hover:cursor-pointer" />
+                        Create Room
+                      </>
+                    )}
                   </Button>
                 </div>
               </div>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+
+      {showSuccessModal && createdRoomData && (
+        <motion.div
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          onClick={() => setShowSuccessModal(false)}
+        >
+          <motion.div
+            className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full"
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.9, opacity: 0 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-6 text-center">
+              {/* Success Icon */}
+              <motion.div
+                className="w-20 h-20 bg-green-100 dark:bg-green-900/20 rounded-full flex items-center justify-center mx-auto mb-6"
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
+              >
+                <motion.div
+                  className="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center"
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ delay: 0.4, type: "spring", stiffness: 200 }}
+                >
+                  <CheckCircle className="w-8 h-8 text-white" />
+                </motion.div>
+              </motion.div>
+
+              {/* Success Message */}
+              <motion.h2
+                className="text-2xl font-bold text-gray-900 dark:text-white mb-4"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 }}
+              >
+                Room Created Successfully!
+              </motion.h2>
+
+              {/* Room Details */}
+              <motion.div
+                className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-xl p-4 mb-6"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.4 }}
+              >
+                <div className="text-4xl mb-3">{createdRoomData.icon}</div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                  {createdRoomData.name}
+                </h3>
+                <p className="text-gray-600 dark:text-gray-400 text-sm">
+                  {createdRoomData.description}
+                </p>
+              </motion.div>
+
+              {/* Action Buttons */}
+              <motion.div
+                className="flex gap-3"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.5 }}
+              >
+                <Button
+                  variant="outline"
+                  onClick={() => setShowSuccessModal(false)}
+                  className="flex-1 border-2 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer"
+                >
+                  Continue
+                </Button>
+                <Button
+                  onClick={() => {
+                    setShowSuccessModal(false);
+                    handleRoomClick(createdRoomData);
+                  }}
+                  className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold flex items-center gap-2"
+                >
+                  <Video className="w-4 h-4" />
+                  Open Room
+                </Button>
+              </motion.div>
+
+              {/* Auto-close indicator */}
+              <motion.div
+                className="mt-4 text-xs text-gray-500 dark:text-gray-400"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.6 }}
+              >
+                This modal will close automatically in a few seconds
+              </motion.div>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+
+      {showDeleteConfirm && (
+        <motion.div
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          onClick={() => setShowDeleteConfirm(null)}
+        >
+          <motion.div
+            className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full"
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.9, opacity: 0 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-6 text-center">
+              {/* Warning Icon */}
+              <motion.div
+                className="w-20 h-20 bg-red-100 dark:bg-red-900/20 rounded-full flex items-center justify-center mx-auto mb-6"
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
+              >
+                <motion.div
+                  className="w-12 h-12 bg-red-500 rounded-full flex items-center justify-center"
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ delay: 0.4, type: "spring", stiffness: 200 }}
+                >
+                  <span className="text-2xl">⚠️</span>
+                </motion.div>
+              </motion.div>
+
+              {/* Warning Message */}
+              <motion.h2
+                className="text-2xl font-bold text-gray-900 dark:text-white mb-4"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 }}
+              >
+                Delete Room?
+              </motion.h2>
+
+              <motion.p
+                className="text-gray-600 dark:text-gray-400 mb-6"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.4 }}
+              >
+                This will permanently delete the room and all its videos and analysis data. This action cannot be undone.
+              </motion.p>
+
+              {/* Action Buttons */}
+              <motion.div
+                className="flex gap-3"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.5 }}
+              >
+                <Button
+                  variant="outline"
+                  onClick={() => setShowDeleteConfirm(null)}
+                  disabled={deletingRoom === showDeleteConfirm}
+                  className="flex-1 border-2 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={() => handleDeleteRoom(showDeleteConfirm!)}
+                  disabled={deletingRoom === showDeleteConfirm}
+                  className="flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold flex items-center gap-2 cursor-pointer"
+                >
+                  {deletingRoom === showDeleteConfirm ? (
+                    <>
+                      <motion.div
+                        animate={{ rotate: 360 }}
+                        transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                        className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full"
+                      />
+                      Deleting...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="w-4 h-4" />
+                      Delete Room
+                    </>
+                  )}
+                </Button>
+              </motion.div>
             </div>
           </motion.div>
         </motion.div>
