@@ -5,7 +5,7 @@ import { Home, Search, User, Menu, X, Building, DoorOpen } from 'lucide-react';
 import { Button } from './ui/button';
 import { useLocation, useNavigate } from 'react-router';
 import { useState, useEffect, useRef } from 'react';
-import { getAllHomes, getRoomsByHomeId, type Home as FirebaseHome } from '../lib/firebaseService';
+import { getAllHomes, getRoomsByHomeId } from '../lib/firebaseService';
 
 interface SearchResult {
   id: string;
@@ -27,7 +27,6 @@ export function NavBar() {
   const [showSearchResults, setShowSearchResults] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
 
-  // Close search results when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
@@ -39,7 +38,6 @@ export function NavBar() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Search functionality
   const performSearch = async (query: string) => {
     if (!query.trim()) {
       setSearchResults([]);
@@ -52,7 +50,6 @@ export function NavBar() {
       const results: SearchResult[] = [];
       const searchTerm = query.toLowerCase();
 
-      // Search homes
       const homes = await getAllHomes();
       const homeMatches = homes.filter(home =>
         home.name.toLowerCase().includes(searchTerm) ||
@@ -68,7 +65,6 @@ export function NavBar() {
         });
       });
 
-      // Search rooms in each home
       for (const home of homes) {
         const rooms = await getRoomsByHomeId(home.id);
         const roomMatches = rooms.filter(room =>
@@ -98,7 +94,7 @@ export function NavBar() {
     }
   };
 
-  // Debounced search
+
   useEffect(() => {
     const timeoutId = setTimeout(() => {
       performSearch(searchQuery);
@@ -174,7 +170,7 @@ export function NavBar() {
             </motion.div>
           )}
 
-          {/* Search Bar */}
+
           {!isAuthPage && (
             <motion.div
               className="flex-1 max-w-md mx-4 relative"
@@ -211,7 +207,6 @@ export function NavBar() {
                 )}
               </div>
 
-              {/* Search Results Dropdown */}
               {showSearchResults && searchResults.length > 0 && (
                 <motion.div
                   className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg max-h-96 overflow-y-auto z-50"
@@ -243,8 +238,8 @@ export function NavBar() {
                               {result.name}
                             </p>
                             <span className={`text-xs px-2 py-1 rounded-full ${result.type === 'home'
-                                ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
-                                : 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                              ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+                              : 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
                               }`}>
                               {result.type === 'home' ? 'Home' : 'Room'}
                             </span>
@@ -266,7 +261,7 @@ export function NavBar() {
                 </motion.div>
               )}
 
-              {/* No Results */}
+
               {showSearchResults && searchQuery && searchResults.length === 0 && !isSearching && (
                 <motion.div
                   className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg p-4 text-center"

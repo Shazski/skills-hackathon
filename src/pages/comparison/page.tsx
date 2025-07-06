@@ -10,7 +10,7 @@ export default function ComparisonPage() {
   const [results, setResults] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const isLoggedIn = false; // Replace with real auth logic
+  const isLoggedIn = false;
   const canCompare = referenceFile && comparisonFile;
 
   const handleReferenceChange = (file: File | null, url: string | null) => {
@@ -35,7 +35,7 @@ export default function ComparisonPage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "gpt-4-turbo", // ✅ updated model
+          model: "gpt-4-turbo",
           messages: [
             {
               role: "system",

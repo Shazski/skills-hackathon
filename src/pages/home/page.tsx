@@ -108,12 +108,9 @@ export const Home = () => {
       try {
         setLoading(true);
         setError(null);
-        console.log('Loading homes...');
 
         const firebaseHomes = await getAllHomes();
-        console.log('Firebase homes loaded:', firebaseHomes);
 
-        // Check analysis status for each home
         const homesWithAnalysisStatus = await Promise.all(
           firebaseHomes.map(async (firebaseHome) => {
             const analysisStatus = await checkHomeAnalysisStatus(firebaseHome.id);
@@ -143,15 +140,15 @@ export const Home = () => {
 
   const handleCreateHome = async () => {
     if (newHome.name.trim() && newHome.address.trim()) {
-      // Check if image is uploaded - if not, show toast and prevent creation
+
       if (!selectedImage) {
         setToast({
           message: 'Please upload an image for your home!',
           type: 'error'
         });
-        // Auto-hide toast after 4 seconds
+
         setTimeout(() => setToast(null), 4000);
-        return; // Stop here, don't create the home
+        return;
       }
 
       try {
@@ -170,7 +167,7 @@ export const Home = () => {
           });
           setTimeout(() => setToast(null), 4000);
           setCreatingHome(false);
-          return; // Stop here if image upload fails
+          return;
         }
 
         const homeData = {
@@ -197,12 +194,12 @@ export const Home = () => {
         setSelectedImage(null);
         setShowCreateHome(false);
 
-        // Show success modal
+
         setCreatedHomeData(newHomeData);
         setShowSuccessModal(true);
         setError(null);
 
-        // Auto-hide success modal after 5 seconds
+
         setTimeout(() => {
           setShowSuccessModal(false);
           setCreatedHomeData(null);
@@ -215,13 +212,12 @@ export const Home = () => {
         setCreatingHome(false);
       }
     } else {
-      // Show toast message if required fields are missing
+
       if (!newHome.name.trim() || !newHome.address.trim()) {
         setToast({
           message: 'Please fill in both home name and address!',
           type: 'error'
         });
-        // Auto-hide toast after 4 seconds
         setTimeout(() => setToast(null), 4000);
       }
     }
@@ -230,19 +226,16 @@ export const Home = () => {
   const handleDeleteHome = async (homeId: string) => {
     try {
       setDeletingHome(homeId);
-      console.log('Deleting home:', homeId);
 
       await deleteHome(homeId);
 
-      // Remove from local state
+
       setHomes(prev => prev.filter(home => home.id !== homeId));
       setShowDeleteConfirm(null);
 
-      // Show success message
       setError(null);
       setSuccess('Home deleted successfully!');
 
-      // Clear success message after 3 seconds
       setTimeout(() => {
         setSuccess(null);
       }, 3000);
@@ -265,7 +258,6 @@ export const Home = () => {
 
   return (
     <div className="px-4 md:px-12 pb-20 md:pb-4">
-      {/* Toast Notification */}
       {toast && (
         <motion.div
           className="fixed top-4 right-4 z-[9999] max-w-sm"
@@ -369,7 +361,7 @@ export const Home = () => {
 
       <div className="flex flex-wrap justify-center md:justify-evenly gap-6 mt-8 mb-20">
         {loading ? (
-          // Loading skeleton
+
           [...Array(6)].map((_, i) => (
             <motion.div
               key={i}
@@ -391,7 +383,7 @@ export const Home = () => {
             </motion.div>
           ))
         ) : homes.length === 0 ? (
-          // No homes message
+
           <motion.div
             className="col-span-full flex flex-col items-center justify-center py-16 px-8"
             initial={{ opacity: 0, y: 20 }}
@@ -434,7 +426,6 @@ export const Home = () => {
                   onClick={() => handleCardClick(home.id)}
                 />
 
-                {/* Show tick mark if all rooms in this home have been analyzed */}
                 {home.hasAllRoomsAnalyzed && (
                   <motion.div
                     className="absolute top-3 left-3 bg-green-500 text-white rounded-full p-1 shadow-lg"
@@ -447,7 +438,7 @@ export const Home = () => {
                 )}
               </div>
 
-              {/* Delete Button - only show if no rooms are analyzed */}
+
               {!home.hasAnyRoomAnalyzed && (
                 <motion.div
                   className="absolute top-4 right-4 z-10"
@@ -685,7 +676,7 @@ export const Home = () => {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="p-6 text-center">
-              {/* Success Icon */}
+
               <motion.div
                 className="w-20 h-20 bg-green-100 dark:bg-green-900/20 rounded-full flex items-center justify-center mx-auto mb-6"
                 initial={{ scale: 0 }}
@@ -702,7 +693,6 @@ export const Home = () => {
                 </motion.div>
               </motion.div>
 
-              {/* Success Message */}
               <motion.h2
                 className="text-2xl font-bold text-gray-900 dark:text-white mb-4"
                 initial={{ opacity: 0, y: 20 }}
@@ -712,7 +702,6 @@ export const Home = () => {
                 Home Created Successfully!
               </motion.h2>
 
-              {/* Home Details */}
               <motion.div
                 className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-xl p-4 mb-6"
                 initial={{ opacity: 0, y: 20 }}
@@ -737,7 +726,6 @@ export const Home = () => {
                 )}
               </motion.div>
 
-              {/* Action Buttons */}
               <motion.div
                 className="flex gap-3"
                 initial={{ opacity: 0, y: 20 }}
@@ -763,7 +751,6 @@ export const Home = () => {
                 </Button>
               </motion.div>
 
-              {/* Auto-close indicator */}
               <motion.div
                 className="mt-4 text-xs text-gray-500 dark:text-gray-400"
                 initial={{ opacity: 0 }}
@@ -793,7 +780,7 @@ export const Home = () => {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="p-6 text-center">
-              {/* Warning Icon */}
+
               <motion.div
                 className="w-20 h-20 bg-red-100 dark:bg-red-900/20 rounded-full flex items-center justify-center mx-auto mb-6"
                 initial={{ scale: 0 }}
@@ -810,7 +797,7 @@ export const Home = () => {
                 </motion.div>
               </motion.div>
 
-              {/* Warning Message */}
+
               <motion.h2
                 className="text-2xl font-bold text-gray-900 dark:text-white mb-4"
                 initial={{ opacity: 0, y: 20 }}
@@ -829,7 +816,6 @@ export const Home = () => {
                 This will permanently delete the home and all its rooms, videos, and analysis data. This action cannot be undone.
               </motion.p>
 
-              {/* Action Buttons */}
               <motion.div
                 className="flex gap-3"
                 initial={{ opacity: 0, y: 20 }}
