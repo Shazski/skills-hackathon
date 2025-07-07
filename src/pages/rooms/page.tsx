@@ -1643,18 +1643,6 @@ export const Rooms = () => {
                               ease: "easeInOut"
                             }}
                           />
-
-                          <motion.div
-                            className="absolute top-0 left-0 h-full w-8 bg-gradient-to-r from-transparent via-white/30 to-transparent"
-                            animate={{
-                              x: ["-100%", "100%"]
-                            }}
-                            transition={{
-                              duration: 2,
-                              repeat: Infinity,
-                              ease: "linear"
-                            }}
-                          />
                         </div>
                         <motion.div
                           className="text-white font-semibold"
@@ -1677,467 +1665,367 @@ export const Rooms = () => {
                       </motion.div>
                     </div>
                   ) : (
-                    <div className="flex gap-4">
+                    <>
+                      <Button
+                        onClick={saveVideosToRoom}
+                        className="flex-1 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:via-indigo-700 hover:to-purple-700 text-white font-semibold flex items-center justify-center gap-3 py-4 text-lg transition-all duration-500 hover:scale-[1.01] hover:cursor-pointer shadow-xl hover:shadow-blue-500/20 rounded-2xl border border-white/20 backdrop-blur-sm relative overflow-hidden group"
+                        disabled={isProcessing}
+                      >
 
-                      {showAnalysisResults && Object.keys(videoAnalysis).length > 0 ? (
-                        <Button
-                          onClick={saveAfterAnalysis}
-                          className="flex-1 bg-gradient-to-r from-green-600 via-emerald-600 to-teal-600 hover:from-green-700 hover:via-emerald-700 hover:to-teal-700 text-white font-semibold flex items-center justify-center gap-3 py-4 text-lg transition-all duration-500 hover:scale-[1.01] hover:cursor-pointer shadow-xl hover:shadow-green-500/20 rounded-2xl border border-white/20 backdrop-blur-sm relative overflow-hidden group"
-                          disabled={isProcessing}
+                        <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/15 to-transparent" />
+
+
+                        <motion.div
+                          className="absolute inset-0 rounded-2xl bg-gradient-to-r from-blue-400/10 to-purple-400/10"
+                          animate={{
+                            opacity: [0.3, 0.6, 0.3]
+                          }}
+                          transition={{
+                            duration: 4,
+                            repeat: Infinity,
+                            ease: "easeInOut"
+                          }}
+                        />
+
+                        <motion.div
+                          className="relative z-10"
+                          whileHover={{
+                            scale: 1.1,
+                            transition: { duration: 0.3 }
+                          }}
                         >
+                          <Save className="w-5 h-5" />
+                        </motion.div>
 
-                          <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/15 to-transparent" />
+                        <span className="relative z-10 font-semibold text-lg">
+                          Save & Analyze
+                        </span>
 
-
-                          <motion.div
-                            className="absolute inset-0 rounded-2xl bg-gradient-to-r from-green-400/10 to-teal-400/10"
-                            animate={{
-                              opacity: [0.3, 0.6, 0.3]
-                            }}
-                            transition={{
-                              duration: 4,
-                              repeat: Infinity,
-                              ease: "easeInOut"
-                            }}
-                          />
-
-                          <motion.div
-                            className="relative z-10"
-                            whileHover={{
-                              scale: 1.1,
-                              transition: { duration: 0.3 }
-                            }}
-                          >
-                            <Save className="w-5 h-5" />
-                          </motion.div>
-
-                          <span className="relative z-10 font-semibold text-lg">
-                            Save with Analysis
-                          </span>
-
-                          <motion.div
-                            className="absolute top-2 right-4 opacity-0 group-hover:opacity-100"
-                            animate={{
-                              scale: [0, 1, 0]
-                            }}
-                            transition={{
-                              duration: 1.5,
-                              repeat: Infinity,
-                              delay: 0.5
-                            }}
-                          >
-                            ✨
-                          </motion.div>
-                        </Button>
-                      ) : (
-                        <>
-                          <Button
-                            onClick={saveVideosToRoom}
-                            className="flex-1 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:via-indigo-700 hover:to-purple-700 text-white font-semibold flex items-center justify-center gap-3 py-4 text-lg transition-all duration-500 hover:scale-[1.01] hover:cursor-pointer shadow-xl hover:shadow-blue-500/20 rounded-2xl border border-white/20 backdrop-blur-sm relative overflow-hidden group"
-                            disabled={isProcessing}
-                          >
-
-                            <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/15 to-transparent" />
-
-
-                            <motion.div
-                              className="absolute inset-0 rounded-2xl bg-gradient-to-r from-blue-400/10 to-purple-400/10"
-                              animate={{
-                                opacity: [0.3, 0.6, 0.3]
-                              }}
-                              transition={{
-                                duration: 4,
-                                repeat: Infinity,
-                                ease: "easeInOut"
-                              }}
-                            />
-
-                            <motion.div
-                              className="relative z-10"
-                              whileHover={{
-                                scale: 1.1,
-                                transition: { duration: 0.3 }
-                              }}
-                            >
-                              <Save className="w-5 h-5" />
-                            </motion.div>
-
-                            <span className="relative z-10 font-semibold text-lg">
-                              Save & Analyze
-                            </span>
-
-                            <motion.div
-                              className="absolute top-2 right-4 opacity-0 group-hover:opacity-100"
-                              animate={{
-                                scale: [0, 1, 0]
-                              }}
-                              transition={{
-                                duration: 1.5,
-                                repeat: Infinity,
-                                delay: 0.5
-                              }}
-                            >
-                              ✨
-                            </motion.div>
-                          </Button>
-
-
-                          <Button
-                            onClick={saveVideosOnly}
-                            className="flex-1 bg-gradient-to-r from-green-600 via-emerald-600 to-teal-600 hover:from-green-700 hover:via-emerald-700 hover:to-teal-700 text-white font-semibold flex items-center justify-center gap-3 py-4 text-lg transition-all duration-500 hover:scale-[1.01] hover:cursor-pointer shadow-xl hover:shadow-green-500/20 rounded-2xl border border-white/20 backdrop-blur-sm relative overflow-hidden group"
-                            disabled={isProcessing}
-                          >
-
-                            <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/15 to-transparent" />
-
-                            <motion.div
-                              className="absolute inset-0 rounded-2xl bg-gradient-to-r from-green-400/10 to-teal-400/10"
-                              animate={{
-                                opacity: [0.3, 0.6, 0.3]
-                              }}
-                              transition={{
-                                duration: 4,
-                                repeat: Infinity,
-                                ease: "easeInOut"
-                              }}
-                            />
-
-
-                            <motion.div
-                              className="relative z-10"
-                              whileHover={{
-                                scale: 1.1,
-                                transition: { duration: 0.3 }
-                              }}
-                            >
-                              <Download className="w-5 h-5" />
-                            </motion.div>
-
-                            <span className="relative z-10 font-semibold text-lg">
-                              Save Only
-                            </span>
-
-                            <motion.div
-                              className="absolute top-2 right-4 opacity-0 group-hover:opacity-100"
-                              animate={{
-                                scale: [0, 1, 0]
-                              }}
-                              transition={{
-                                duration: 1.5,
-                                repeat: Infinity,
-                                delay: 0.5
-                              }}
-                            >
-                              💾
-                            </motion.div>
-                          </Button>
-                        </>
-                      )}
-                    </div>
+                        <motion.div
+                          className="absolute top-2 right-4 opacity-0 group-hover:opacity-100"
+                          animate={{
+                            scale: [0, 1, 0]
+                          }}
+                          transition={{
+                            duration: 1.5,
+                            repeat: Infinity,
+                            delay: 0.5
+                          }}
+                        >
+                          ✨
+                        </motion.div>
+                      </Button>
+                    </>
                   )}
                 </div>
               )}
-
             </div>
           </motion.div>
         </motion.div>
-      )}
+      )
+      }
 
-      {showCreateRoom && (
-        <motion.div
-          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          onClick={() => setShowCreateRoom(false)}
-        >
+      {
+        showCreateRoom && (
           <motion.div
-            className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full"
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.9, opacity: 0 }}
-            onClick={(e) => e.stopPropagation()}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setShowCreateRoom(false)}
           >
-            <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
-                    <Plus className="w-5 h-5 text-white" />
+            <motion.div
+              className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full"
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
+                      <Plus className="w-5 h-5 text-white" />
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                        Create New Room
+                      </h2>
+                      <p className="text-gray-600 dark:text-gray-400 text-sm">
+                        Add a new room to your home
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-                      Create New Room
-                    </h2>
-                    <p className="text-gray-600 dark:text-gray-400 text-sm">
-                      Add a new room to your home
-                    </p>
-                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowCreateRoom(false)}
+                    className="text-gray-500 hover:text-gray-700 cursor-pointer"
+                  >
+                    ✕
+                  </Button>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setShowCreateRoom(false)}
-                  className="text-gray-500 hover:text-gray-700 cursor-pointer"
-                >
-                  ✕
-                </Button>
               </div>
-            </div>
 
-            <div className="p-6">
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Room Name
-                  </label>
-                  <input
-                    type="text"
-                    value={newRoom.name}
-                    onChange={(e) => setNewRoom(prev => ({ ...prev, name: e.target.value }))}
-                    placeholder="e.g., Home Office, Game Room"
-                    className="w-full px-4 py-3 border-2 border-gray-200 dark:border-gray-700 focus:border-blue-500 dark:focus:border-blue-400 rounded-xl transition-all duration-300 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                  />
+              <div className="p-6">
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Room Name
+                    </label>
+                    <input
+                      type="text"
+                      value={newRoom.name}
+                      onChange={(e) => setNewRoom(prev => ({ ...prev, name: e.target.value }))}
+                      placeholder="e.g., Home Office, Game Room"
+                      className="w-full px-4 py-3 border-2 border-gray-200 dark:border-gray-700 focus:border-blue-500 dark:focus:border-blue-400 rounded-xl transition-all duration-300 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Description
+                    </label>
+                    <textarea
+                      value={newRoom.description}
+                      onChange={(e) => setNewRoom(prev => ({ ...prev, description: e.target.value }))}
+                      placeholder="Describe your room..."
+                      rows={3}
+                      className="w-full px-4 py-3 border-2 border-gray-200 dark:border-gray-700 focus:border-blue-500 dark:focus:border-blue-400 rounded-xl transition-all duration-300 bg-white dark:bg-gray-700 text-gray-900 dark:text-white resize-none"
+                    />
+                  </div>
+
+                  <div className="flex gap-3 pt-4">
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowCreateRoom(false)}
+                      disabled={creatingRoom}
+                      className="flex-1 border-2 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer"
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      onClick={handleCreateRoom}
+                      disabled={!newRoom.name.trim() || !newRoom.description.trim() || creatingRoom}
+                      className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold flex items-center gap-2 hover:cursor-pointer"
+                    >
+                      {creatingRoom ? (
+                        <>
+                          <motion.div
+                            animate={{ rotate: 360 }}
+                            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                            className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full hover:cursor-pointer"
+                          />
+                          Creating...
+                        </>
+                      ) : (
+                        <>
+                          <Save className="w-4 h-4 hover:cursor-pointer" />
+                          Create Room
+                        </>
+                      )}
+                    </Button>
+                  </div>
                 </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )
+      }
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Description
-                  </label>
-                  <textarea
-                    value={newRoom.description}
-                    onChange={(e) => setNewRoom(prev => ({ ...prev, description: e.target.value }))}
-                    placeholder="Describe your room..."
-                    rows={3}
-                    className="w-full px-4 py-3 border-2 border-gray-200 dark:border-gray-700 focus:border-blue-500 dark:focus:border-blue-400 rounded-xl transition-all duration-300 bg-white dark:bg-gray-700 text-gray-900 dark:text-white resize-none"
-                  />
-                </div>
+      {
+        showSuccessModal && createdRoomData && (
+          <motion.div
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setShowSuccessModal(false)}
+          >
+            <motion.div
+              className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full"
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-6 text-center">
+                <motion.div
+                  className="w-20 h-20 bg-green-100 dark:bg-green-900/20 rounded-full flex items-center justify-center mx-auto mb-6"
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
+                >
+                  <motion.div
+                    className="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center"
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={{ delay: 0.4, type: "spring", stiffness: 200 }}
+                  >
+                    <CheckCircle className="w-8 h-8 text-white" />
+                  </motion.div>
+                </motion.div>
 
-                <div className="flex gap-3 pt-4">
+
+                <motion.h2
+                  className="text-2xl font-bold text-gray-900 dark:text-white mb-4"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.3 }}
+                >
+                  Room Created Successfully!
+                </motion.h2>
+
+
+                <motion.div
+                  className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-xl p-4 mb-6"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.4 }}
+                >
+                  <div className="text-4xl mb-3">{createdRoomData.icon}</div>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                    {createdRoomData.name}
+                  </h3>
+                  <p className="text-gray-600 dark:text-gray-400 text-sm">
+                    {createdRoomData.description}
+                  </p>
+                </motion.div>
+
+
+                <motion.div
+                  className="flex gap-3"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.5 }}
+                >
                   <Button
                     variant="outline"
-                    onClick={() => setShowCreateRoom(false)}
-                    disabled={creatingRoom}
+                    onClick={() => setShowSuccessModal(false)}
+                    className="flex-1 border-2 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer"
+                  >
+                    Continue
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      setShowSuccessModal(false);
+                      handleRoomClick(createdRoomData);
+                    }}
+                    className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold flex items-center gap-2"
+                  >
+                    <Video className="w-4 h-4" />
+                    Open Room
+                  </Button>
+                </motion.div>
+
+
+                <motion.div
+                  className="mt-4 text-xs text-gray-500 dark:text-gray-400"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.6 }}
+                >
+                  This modal will close automatically in a few seconds
+                </motion.div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )
+      }
+
+      {
+        showDeleteConfirm && (
+          <motion.div
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setShowDeleteConfirm(null)}
+          >
+            <motion.div
+              className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full"
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-6 text-center">
+
+                <motion.div
+                  className="w-20 h-20 bg-red-100 dark:bg-red-900/20 rounded-full flex items-center justify-center mx-auto mb-6"
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
+                >
+                  <motion.div
+                    className="w-12 h-12 bg-red-500 rounded-full flex items-center justify-center"
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={{ delay: 0.4, type: "spring", stiffness: 200 }}
+                  >
+                    <span className="text-2xl">⚠️</span>
+                  </motion.div>
+                </motion.div>
+
+                <motion.h2
+                  className="text-2xl font-bold text-gray-900 dark:text-white mb-4"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.3 }}
+                >
+                  Delete Room?
+                </motion.h2>
+
+                <motion.p
+                  className="text-gray-600 dark:text-gray-400 mb-6"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.4 }}
+                >
+                  This will permanently delete the room and all its videos and analysis data. This action cannot be undone.
+                </motion.p>
+
+                <motion.div
+                  className="flex gap-3"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.5 }}
+                >
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowDeleteConfirm(null)}
+                    disabled={deletingRoom === showDeleteConfirm}
                     className="flex-1 border-2 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer"
                   >
                     Cancel
                   </Button>
                   <Button
-                    onClick={handleCreateRoom}
-                    disabled={!newRoom.name.trim() || !newRoom.description.trim() || creatingRoom}
-                    className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold flex items-center gap-2 hover:cursor-pointer"
+                    onClick={() => handleDeleteRoom(showDeleteConfirm!)}
+                    disabled={deletingRoom === showDeleteConfirm}
+                    className="flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold flex items-center gap-2 cursor-pointer"
                   >
-                    {creatingRoom ? (
+                    {deletingRoom === showDeleteConfirm ? (
                       <>
                         <motion.div
                           animate={{ rotate: 360 }}
                           transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                          className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full hover:cursor-pointer"
+                          className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full"
                         />
-                        Creating...
+                        Deleting...
                       </>
                     ) : (
                       <>
-                        <Save className="w-4 h-4 hover:cursor-pointer" />
-                        Create Room
+                        <Trash2 className="w-4 h-4" />
+                        Delete Room
                       </>
                     )}
                   </Button>
-                </div>
+                </motion.div>
               </div>
-            </div>
+            </motion.div>
           </motion.div>
-        </motion.div>
-      )}
-
-      {showSuccessModal && createdRoomData && (
-        <motion.div
-          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          onClick={() => setShowSuccessModal(false)}
-        >
-          <motion.div
-            className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full"
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.9, opacity: 0 }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="p-6 text-center">
-              <motion.div
-                className="w-20 h-20 bg-green-100 dark:bg-green-900/20 rounded-full flex items-center justify-center mx-auto mb-6"
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
-              >
-                <motion.div
-                  className="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center"
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  transition={{ delay: 0.4, type: "spring", stiffness: 200 }}
-                >
-                  <CheckCircle className="w-8 h-8 text-white" />
-                </motion.div>
-              </motion.div>
-
-
-              <motion.h2
-                className="text-2xl font-bold text-gray-900 dark:text-white mb-4"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.3 }}
-              >
-                Room Created Successfully!
-              </motion.h2>
-
-
-              <motion.div
-                className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-xl p-4 mb-6"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.4 }}
-              >
-                <div className="text-4xl mb-3">{createdRoomData.icon}</div>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                  {createdRoomData.name}
-                </h3>
-                <p className="text-gray-600 dark:text-gray-400 text-sm">
-                  {createdRoomData.description}
-                </p>
-              </motion.div>
-
-
-              <motion.div
-                className="flex gap-3"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.5 }}
-              >
-                <Button
-                  variant="outline"
-                  onClick={() => setShowSuccessModal(false)}
-                  className="flex-1 border-2 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer"
-                >
-                  Continue
-                </Button>
-                <Button
-                  onClick={() => {
-                    setShowSuccessModal(false);
-                    handleRoomClick(createdRoomData);
-                  }}
-                  className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold flex items-center gap-2"
-                >
-                  <Video className="w-4 h-4" />
-                  Open Room
-                </Button>
-              </motion.div>
-
-
-              <motion.div
-                className="mt-4 text-xs text-gray-500 dark:text-gray-400"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.6 }}
-              >
-                This modal will close automatically in a few seconds
-              </motion.div>
-            </div>
-          </motion.div>
-        </motion.div>
-      )}
-
-      {showDeleteConfirm && (
-        <motion.div
-          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          onClick={() => setShowDeleteConfirm(null)}
-        >
-          <motion.div
-            className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full"
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.9, opacity: 0 }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="p-6 text-center">
-
-              <motion.div
-                className="w-20 h-20 bg-red-100 dark:bg-red-900/20 rounded-full flex items-center justify-center mx-auto mb-6"
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
-              >
-                <motion.div
-                  className="w-12 h-12 bg-red-500 rounded-full flex items-center justify-center"
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  transition={{ delay: 0.4, type: "spring", stiffness: 200 }}
-                >
-                  <span className="text-2xl">⚠️</span>
-                </motion.div>
-              </motion.div>
-
-              <motion.h2
-                className="text-2xl font-bold text-gray-900 dark:text-white mb-4"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.3 }}
-              >
-                Delete Room?
-              </motion.h2>
-
-              <motion.p
-                className="text-gray-600 dark:text-gray-400 mb-6"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.4 }}
-              >
-                This will permanently delete the room and all its videos and analysis data. This action cannot be undone.
-              </motion.p>
-
-              <motion.div
-                className="flex gap-3"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.5 }}
-              >
-                <Button
-                  variant="outline"
-                  onClick={() => setShowDeleteConfirm(null)}
-                  disabled={deletingRoom === showDeleteConfirm}
-                  className="flex-1 border-2 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={() => handleDeleteRoom(showDeleteConfirm!)}
-                  disabled={deletingRoom === showDeleteConfirm}
-                  className="flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold flex items-center gap-2 cursor-pointer"
-                >
-                  {deletingRoom === showDeleteConfirm ? (
-                    <>
-                      <motion.div
-                        animate={{ rotate: 360 }}
-                        transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                        className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full"
-                      />
-                      Deleting...
-                    </>
-                  ) : (
-                    <>
-                      <Trash2 className="w-4 h-4" />
-                      Delete Room
-                    </>
-                  )}
-                </Button>
-              </motion.div>
-            </div>
-          </motion.div>
-        </motion.div>
-      )}
-    </div>
+        )
+      }
+    </div >
   );
 }; 
