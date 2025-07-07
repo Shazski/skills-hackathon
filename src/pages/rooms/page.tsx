@@ -197,8 +197,8 @@ export const Rooms = () => {
     if (files && files.length > 0) {
       const file = files[0];
       const videoUrl = URL.createObjectURL(file);
-      setUploadedVideos([{ url: videoUrl, file: file }]);
-      setRecordedVideos([]);
+      setUploadedVideos(prev => [...prev, { url: videoUrl, file }]);
+      // Do not clear recordedVideos
     }
   };
 
