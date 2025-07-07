@@ -88,14 +88,15 @@ export const Home = () => {
     try {
       const rooms = await getRoomsByHomeId(homeId);
       if (rooms.length === 0) return { hasAllRoomsAnalyzed: false, hasAnyRoomAnalyzed: false };
-
-      const analysisPromises = rooms.map(room => getCompletedAnalysesByRoomId(room.id));
+      const analysisPromises = rooms.map(room => getCompletedAnalysesByRoomId(room.id).then(analyses => {
+        // Only count as analyzed if all videos have completed analysis
+        const completedVideoUrls = analyses.map(a => a.cloudinaryUrl || a.videoUrl);
+        const allAnalyzed = room.videos.length > 0 && room.videos.every(url => completedVideoUrls.includes(url));
+        return allAnalyzed;
+      }));
       const analysisResults = await Promise.all(analysisPromises);
-
-      const roomsWithAnalysis = analysisResults.filter(analyses => analyses.length > 0);
-      const hasAllRoomsAnalyzed = roomsWithAnalysis.length === rooms.length;
-      const hasAnyRoomAnalyzed = roomsWithAnalysis.length > 0;
-
+      const hasAllRoomsAnalyzed = analysisResults.length > 0 && analysisResults.every(Boolean);
+      const hasAnyRoomAnalyzed = analysisResults.some(Boolean);
       return { hasAllRoomsAnalyzed, hasAnyRoomAnalyzed };
     } catch (error) {
       console.error('Error checking home analysis status:', error);
@@ -136,6 +137,21 @@ export const Home = () => {
     };
 
     loadHomesAndAnalysisStatus();
+  }, []);
+
+  useEffect(() => {
+    const handler = async (e: any) => {
+      const homeId = e.detail?.homeId;
+      if (!homeId) return;
+      const analysisStatus = await checkHomeAnalysisStatus(homeId);
+      setHomes(prevHomes => prevHomes.map(home =>
+        home.id === homeId
+          ? { ...home, hasAllRoomsAnalyzed: analysisStatus.hasAllRoomsAnalyzed, hasAnyRoomAnalyzed: analysisStatus.hasAnyRoomAnalyzed }
+          : home
+      ));
+    };
+    window.addEventListener('home-analysis-status-updated', handler);
+    return () => window.removeEventListener('home-analysis-status-updated', handler);
   }, []);
 
   const handleCreateHome = async () => {

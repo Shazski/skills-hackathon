@@ -28,8 +28,10 @@ import {
   getHomeById,
   type Room as FirebaseRoom,
   type VideoAnalysis,
-  type Home as FirebaseHome
+  type Home as FirebaseHome,
+  deleteVideoAnalysis
 } from '../../lib/firebaseService';
+import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 
 interface Room {
   id: string;
@@ -86,7 +88,9 @@ export const Rooms = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
-
+  const [videoToDelete, setVideoToDelete] = useState<string | null>(null);
+  const [deletingVideo, setDeletingVideo] = useState(false);
+  const [firebaseAnalyses, setFirebaseAnalyses] = useState<any[]>([]);
 
   useEffect(() => {
     const loadRooms = async () => {
@@ -111,8 +115,9 @@ export const Rooms = () => {
         const roomsWithAnalysisStatus = await Promise.all(
           firebaseRooms.map(async (firebaseRoom) => {
             const completedAnalyses = await getCompletedAnalysesByRoomId(firebaseRoom.id);
-            const hasCompletedAnalysis = completedAnalyses.length > 0;
-
+            // Only count analyses for videos that still exist in the room
+            const completedVideoUrls = completedAnalyses.map(a => a.cloudinaryUrl || a.videoUrl);
+            const hasCompletedAnalysis = firebaseRoom.videos.length > 0 && firebaseRoom.videos.every(url => completedVideoUrls.includes(url));
             return {
               id: firebaseRoom.id,
               name: firebaseRoom.name,
@@ -350,11 +355,15 @@ export const Rooms = () => {
 
           await updateVideoAnalysisResults(firebaseAnalysisId, items, [], cloudinaryUrl);
 
+          const completedAnalyses = await getCompletedAnalysesByRoomId(selectedRoom.id);
+          const completedVideoUrls = completedAnalyses.map(a => a.cloudinaryUrl || a.videoUrl);
+          const hasCompletedAnalysis = selectedRoom.videos.length > 0 && selectedRoom.videos.every(url => completedVideoUrls.includes(url));
           setRooms(prev => prev.map(room =>
             room.id === selectedRoom.id
-              ? { ...room, hasCompletedAnalysis: true }
+              ? { ...room, hasCompletedAnalysis }
               : room
           ));
+          window.dispatchEvent(new CustomEvent('home-analysis-status-updated', { detail: { homeId: homeId || (home && home.id) } }));
 
           saveAnalysisResults(selectedRoom.id, analysisKey, analysisData);
         } catch (error) {
@@ -750,7 +759,7 @@ export const Rooms = () => {
 
     try {
       const firebaseAnalyses = await getVideoAnalysesByRoomId(room.id);
-      console.log('Firebase analyses for room:', firebaseAnalyses);
+      setFirebaseAnalyses(firebaseAnalyses);
 
       const firebaseResults: { [videoUrl: string]: { items: string[]; missingItems: string[] } } = {};
 
@@ -945,6 +954,21 @@ export const Rooms = () => {
       setDeletingRoom(null);
     }
   };
+
+  const getAnalysisIdForVideo = (videoUrl: string) => {
+    if (!selectedRoom) return null;
+    if (!firebaseAnalyses) return null;
+    const found = firebaseAnalyses.find((a: any) => (a.cloudinaryUrl || a.videoUrl) === videoUrl);
+    return found ? found.id : null;
+  };
+
+  // Whenever setToast is called, set a timeout to clear it after 3 seconds
+  useEffect(() => {
+    if (toast) {
+      const timeout = setTimeout(() => setToast(null), 3000);
+      return () => clearTimeout(timeout);
+    }
+  }, [toast]);
 
   return (
     <div className="px-4 md:px-12 pb-20 md:pb-4">
@@ -1384,7 +1408,6 @@ export const Rooms = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {currentRoomVideos.map((videoUrl, index) => {
                       const analysis = findAnalysisForVideo(videoUrl);
-
                       return (
                         <div key={index} className="relative group">
                           <video
@@ -1392,8 +1415,16 @@ export const Rooms = () => {
                             controls
                             className="w-full h-48 bg-gray-200 dark:bg-gray-700 rounded-lg"
                           />
-
-
+                          <div className="absolute top-2 right-2 flex gap-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="bg-red-500 hover:bg-red-600 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:cursor-pointer"
+                              onClick={() => setVideoToDelete(videoUrl)}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
                           {analysis && showAnalysisResults && (
                             <motion.div
                               className="mt-3 p-4 bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 rounded-lg border border-purple-200 dark:border-purple-700"
@@ -1404,7 +1435,6 @@ export const Rooms = () => {
                               <h4 className="text-sm font-semibold text-purple-700 dark:text-purple-300 mb-3 flex items-center gap-2">
                                 🤖 AI Analysis Results
                               </h4>
-
                               <div className="mb-3">
                                 <h5 className="text-xs font-medium text-green-700 dark:text-green-300 mb-2 flex items-center gap-1">
                                   ✅ Detected Items ({analysis.items.length})
@@ -1470,14 +1500,18 @@ export const Rooms = () => {
                           )}
 
                           <div className="absolute top-2 right-2 flex gap-2">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="bg-red-500 hover:bg-red-600 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:cursor-pointer"
-                              onClick={() => removeVideo(index, 'recorded')}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
+                            {analyzingVideos.has(video.url) ? (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="bg-red-500 hover:bg-red-600 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:cursor-pointer"
+                                onClick={() => removeVideo(index, 'recorded')}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            ) : (
+                              <></>
+                            )}
                           </div>
 
                           {analysis && showAnalysisResults && (
@@ -1701,19 +1735,6 @@ export const Rooms = () => {
                           Save & Analyze
                         </span>
 
-                        <motion.div
-                          className="absolute top-2 right-4 opacity-0 group-hover:opacity-100"
-                          animate={{
-                            scale: [0, 1, 0]
-                          }}
-                          transition={{
-                            duration: 1.5,
-                            repeat: Infinity,
-                            delay: 0.5
-                          }}
-                        >
-                          ✨
-                        </motion.div>
                       </Button>
                     </>
                   )}
@@ -2009,7 +2030,7 @@ export const Rooms = () => {
                         <motion.div
                           animate={{ rotate: 360 }}
                           transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                          className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full"
+                          className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full cursor-pointer"
                         />
                         Deleting...
                       </>
@@ -2026,6 +2047,67 @@ export const Rooms = () => {
           </motion.div>
         )
       }
+
+      <Dialog open={!!videoToDelete} onOpenChange={open => { if (!open) setVideoToDelete(null); }}>
+        <DialogContent>
+          <DialogTitle>Delete Video?</DialogTitle>
+          <DialogDescription>
+            Are you sure you want to delete this video? This will remove it from the room and delete its analysis data. This action cannot be undone.
+          </DialogDescription>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setVideoToDelete(null)} disabled={deletingVideo}>Cancel</Button>
+            <Button
+              className="cursor-pointer"
+              variant="destructive"
+              onClick={async () => {
+                if (!videoToDelete || !selectedRoom) return;
+                setDeletingVideo(true);
+                try {
+                  // Remove from UI
+                  setCurrentRoomVideos(prev => prev.filter(url => url !== videoToDelete));
+                  setVideoAnalysis(prev => {
+                    const newAnalysis = { ...prev };
+                    delete newAnalysis[videoToDelete];
+                    return newAnalysis;
+                  });
+                  // Remove from Firebase
+                  const newVideos = currentRoomVideos.filter(url => url !== videoToDelete);
+                  await updateRoomVideos(selectedRoom.id, newVideos);
+                  // Delete analysis in Firebase
+                  const analysisId = getAnalysisIdForVideo(videoToDelete);
+                  if (analysisId) {
+                    await deleteVideoAnalysis(analysisId);
+                  }
+                  setVideoToDelete(null);
+                  setToast({ message: 'Video deleted successfully.', type: 'success' });
+                  // Update hasCompletedAnalysis and videos for the room
+                  try {
+                    const completedAnalyses = await getCompletedAnalysesByRoomId(selectedRoom.id);
+                    const completedVideoUrls = completedAnalyses.map(a => a.cloudinaryUrl || a.videoUrl);
+                    const hasCompletedAnalysis = newVideos.length > 0 && newVideos.every(url => completedVideoUrls.includes(url));
+                    setRooms(prevRooms => prevRooms.map(room =>
+                      room.id === selectedRoom.id
+                        ? { ...room, hasCompletedAnalysis, videos: newVideos }
+                        : room
+                    ));
+                    // Notify home page to update analysis status
+                    window.dispatchEvent(new CustomEvent('home-analysis-status-updated', { detail: { homeId: homeId || (home && home.id) } }));
+                  } catch (err) {
+                    console.error('Error updating room analysis status:', err);
+                  }
+                } catch (err) {
+                  setToast({ message: 'Failed to delete video.', type: 'error' });
+                } finally {
+                  setDeletingVideo(false);
+                }
+              }}
+              disabled={deletingVideo}
+            >
+              {deletingVideo ? 'Deleting...' : 'Delete'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div >
   );
 }; 

@@ -371,4 +371,14 @@ export const deleteRoom = async (roomId: string): Promise<void> => {
     console.error('Error deleting room:', error);
     throw error;
   }
+};
+
+export const deleteVideoAnalysis = async (analysisId: string): Promise<void> => {
+  try {
+    const analysisRef = doc(db, 'videoAnalyses', analysisId);
+    await updateDoc(analysisRef, { deletedAt: serverTimestamp() });
+  } catch (error) {
+    console.error('Error deleting video analysis:', error);
+    throw error;
+  }
 }; 
