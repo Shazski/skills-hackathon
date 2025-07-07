@@ -311,9 +311,9 @@ export const Home = () => {
         transition={{ duration: 0.7 }}
       >
         <motion.h1
-          className="text-2xl md:text-3xl font-bold text-gray-800 dark:text-gray-100 mb-2"
-          whileHover={{ scale: 1.05 }}
-          transition={{ type: "spring", stiffness: 300 }}
+          className="text-2xl md:text-3xl font-bold text-gray-800 dark:text-gray-100 mb-2 cursor-pointer"
+          whileHover={{ scale: 1.02 }}
+          transition={{ type: "tween", stiffness: 300 }}
         >
           🏠 Your Homes
         </motion.h1>

@@ -3,7 +3,7 @@ import { ModeToggle } from './mode-toggle';
 import { motion } from 'framer-motion';
 import { Home, Search, User, Menu, X, Building, DoorOpen } from 'lucide-react';
 import { Button } from './ui/button';
-import { useLocation, useNavigate } from 'react-router';
+import { useLocation, useNavigate, NavLink } from 'react-router';
 import { useState, useEffect, useRef } from 'react';
 import { getAllHomes, getRoomsByHomeId } from '../lib/firebaseService';
 
@@ -128,28 +128,23 @@ export function NavBar() {
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
-          <motion.a
-            href='/home'
+          <motion.div
             className="flex items-center space-x-3 cursor-pointer"
             whileHover={{ scale: 1.05 }}
-            transition={{ type: "spring", stiffness: 300 }}
+            transition={{ type: "inertia", stiffness: 300 }}
+            onClick={() => navigate('/')}
           >
             <motion.img
               src={LOGO}
               alt="Logo"
               className="h-8 w-8 rounded-lg shadow-md"
               whileHover={{ rotate: 5 }}
-              transition={{ type: "spring", stiffness: 200 }}
+              transition={{ type: "decay", stiffness: 200 }}
             />
-            <motion.span
-              className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent"
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.2 }}
-            >
-              HomeFinder
-            </motion.span>
-          </motion.a>
+            <NavLink to="/" className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+              Home
+            </NavLink>
+          </motion.div>
 
           {!isAuthPage && (
             <motion.div
@@ -158,15 +153,15 @@ export function NavBar() {
               animate={{ opacity: 1 }}
               transition={{ delay: 0.3 }}
             >
-              <motion.a
-                href="/home"
-                className="flex items-center space-x-2 text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors duration-200 font-medium"
-                whileHover={{ y: -2 }}
-                whileTap={{ scale: 0.95 }}
+              <NavLink
+                to="/"
+                className={({ isActive }) =>
+                  `flex items-center space-x-2 text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors duration-200 font-medium ${isActive ? 'text-blue-600 dark:text-blue-400 font-bold' : ''}`
+                }
               >
                 <Home className="h-4 w-4" />
                 <span>Home</span>
-              </motion.a>
+              </NavLink>
             </motion.div>
           )}
 
@@ -293,16 +288,6 @@ export function NavBar() {
             >
               <ModeToggle />
             </motion.div>
-
-            <motion.div
-              className="md:hidden"
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.9 }}
-            >
-              <Button variant="ghost" size="icon">
-                <Menu className="h-5 w-5" />
-              </Button>
-            </motion.div>
           </motion.div>
         </div>
       </div>
@@ -315,14 +300,24 @@ export function NavBar() {
           transition={{ duration: 0.3 }}
         >
           <div className="px-4 py-2 space-y-2">
-            <a href="/home" className="flex items-center space-x-3 px-3 py-2 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+            <NavLink
+              to="/"
+              className={({ isActive }) =>
+                `flex items-center space-x-3 px-3 py-2 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors ${isActive ? 'text-blue-600 dark:text-blue-400 font-bold' : ''}`
+              }
+            >
               <Home className="h-4 w-4" />
               <span>Home</span>
-            </a>
-            <a href="#profile" className="flex items-center space-x-3 px-3 py-2 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+            </NavLink>
+            <NavLink
+              to="#profile"
+              className={({ isActive }) =>
+                `flex items-center space-x-3 px-3 py-2 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors ${isActive ? 'text-blue-600 dark:text-blue-400 font-bold' : ''}`
+              }
+            >
               <User className="h-4 w-4" />
               <span>Profile</span>
-            </a>
+            </NavLink>
           </div>
         </motion.div>
       )}

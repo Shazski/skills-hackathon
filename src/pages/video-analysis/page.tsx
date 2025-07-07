@@ -12,6 +12,8 @@ import {
   Save,
   Cloud
 } from "lucide-react";
+import { useLoader } from '@/App';
+import { withLoader } from '@/lib/firebaseService';
 
 export default function VideoAnalysisPage() {
   const [videoFile, setVideoFile] = useState<File | null>(null);
@@ -65,7 +67,7 @@ export default function VideoAnalysisPage() {
       console.log('Uploading to Cloudinary...');
       setUploadProgress(10);
 
-      const cloudinaryVideoUrl = await uploadToCloudinary(videoFile);
+      const cloudinaryVideoUrl = await withLoader(() => uploadToCloudinary(videoFile));
       setCloudinaryUrl(cloudinaryVideoUrl);
       setUploadProgress(50);
 

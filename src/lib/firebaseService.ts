@@ -13,6 +13,7 @@ import {
 } from 'firebase/firestore';
 import type { DocumentData } from 'firebase/firestore';
 import { db } from './firebase';
+import { useLoader } from '@/App';
 
 export interface Room {
   id: string;
@@ -57,6 +58,17 @@ export interface CreateHomeData {
   name: string;
   address: string;
   imageUrl?: string;
+}
+
+// Helper to wrap API calls with loader
+export async function withLoader<T>(fn: () => Promise<T>): Promise<T> {
+  const loader = (typeof window !== 'undefined' && (window as any).loaderCtx) || { show: () => {}, hide: () => {} };
+  try {
+    loader.show();
+    return await fn();
+  } finally {
+    loader.hide();
+  }
 }
 
 // Test Firebase connection

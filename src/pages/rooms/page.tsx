@@ -32,6 +32,8 @@ import {
   deleteVideoAnalysis
 } from '../../lib/firebaseService';
 import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { useLoader } from '@/App';
+import { withLoader } from '@/lib/firebaseService';
 
 interface Room {
   id: string;
@@ -93,6 +95,21 @@ export const Rooms = () => {
   const [firebaseAnalyses, setFirebaseAnalyses] = useState<any[]>([]);
 
   useEffect(() => {
+    const savedRecorded = localStorage.getItem('recordedVideos');
+    if (savedRecorded) setRecordedVideos(JSON.parse(savedRecorded));
+    const savedUploaded = localStorage.getItem('uploadedVideos');
+    if (savedUploaded) setUploadedVideos(JSON.parse(savedUploaded));
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem('recordedVideos', JSON.stringify(recordedVideos));
+  }, [recordedVideos]);
+
+  useEffect(() => {
+    localStorage.setItem('uploadedVideos', JSON.stringify(uploadedVideos));
+  }, [uploadedVideos]);
+
+  useEffect(() => {
     const loadRooms = async () => {
       if (!homeId) return;
 
@@ -101,7 +118,7 @@ export const Rooms = () => {
         setError(null);
         console.log('Loading rooms for homeId:', homeId);
 
-        const homeData = await getHomeById(homeId);
+        const homeData = await withLoader(() => getHomeById(homeId));
         if (homeData) {
           setHome(homeData);
         } else {
@@ -110,11 +127,11 @@ export const Rooms = () => {
           return;
         }
 
-        const firebaseRooms = await getRoomsByHomeId(homeId);
+        const firebaseRooms = await withLoader(() => getRoomsByHomeId(homeId));
 
         const roomsWithAnalysisStatus = await Promise.all(
           firebaseRooms.map(async (firebaseRoom) => {
-            const completedAnalyses = await getCompletedAnalysesByRoomId(firebaseRoom.id);
+            const completedAnalyses = await withLoader(() => getCompletedAnalysesByRoomId(firebaseRoom.id));
             // Only count analyses for videos that still exist in the room
             const completedVideoUrls = completedAnalyses.map(a => a.cloudinaryUrl || a.videoUrl);
             const hasCompletedAnalysis = firebaseRoom.videos.length > 0 && firebaseRoom.videos.every(url => completedVideoUrls.includes(url));
@@ -205,7 +222,11 @@ export const Rooms = () => {
   const removeVideo = (index: number, type: 'recorded' | 'uploaded') => {
     if (type === 'recorded') {
       const videoToRemove = recordedVideos[index];
-      setRecordedVideos(prev => prev.filter((_, i) => i !== index));
+      setRecordedVideos(prev => {
+        const updated = prev.filter((_, i) => i !== index);
+        localStorage.setItem('recordedVideos', JSON.stringify(updated));
+        return updated;
+      });
 
       setVideoAnalysis(prev => {
         const newAnalysis = { ...prev };
@@ -214,7 +235,11 @@ export const Rooms = () => {
       });
     } else {
       const videoToRemove = uploadedVideos[index];
-      setUploadedVideos(prev => prev.filter((_, i) => i !== index));
+      setUploadedVideos(prev => {
+        const updated = prev.filter((_, i) => i !== index);
+        localStorage.setItem('uploadedVideos', JSON.stringify(updated));
+        return updated;
+      });
 
 
       setVideoAnalysis(prev => {
@@ -507,7 +532,9 @@ export const Rooms = () => {
 
 
       setRecordedVideos([]);
+      localStorage.removeItem('recordedVideos');
       setUploadedVideos([]);
+      localStorage.removeItem('uploadedVideos');
 
 
       setIsProcessing(false);
@@ -641,7 +668,9 @@ export const Rooms = () => {
 
 
       setRecordedVideos([]);
+      localStorage.removeItem('recordedVideos');
       setUploadedVideos([]);
+      localStorage.removeItem('uploadedVideos');
 
 
       setProcessingProgress(100);
@@ -728,7 +757,9 @@ export const Rooms = () => {
 
 
       setRecordedVideos([]);
+      localStorage.removeItem('recordedVideos');
       setUploadedVideos([]);
+      localStorage.removeItem('uploadedVideos');
 
       setIsProcessing(false);
       setProcessingProgress(0);
@@ -748,8 +779,6 @@ export const Rooms = () => {
 
     setSelectedRoom(room);
     setCurrentRoomVideos(room.videos);
-    setRecordedVideos([]);
-    setUploadedVideos([]);
 
 
     if (videoRef.current) {
@@ -1009,7 +1038,7 @@ export const Rooms = () => {
         animate={{ opacity: 1, x: 0 }}
         transition={{ duration: 0.5 }}
       >
-        <Link to="/home">
+        <Link to="/">
           <Button variant="ghost" size="sm" className="flex items-center gap-2 cursor-pointer">
             <ArrowLeft className="w-4 h-4" />
             Back to Homes
@@ -1284,10 +1313,32 @@ export const Rooms = () => {
 
                     {!isLiveRecording && !videoRef.current?.srcObject && (
                       <div className="absolute inset-0 flex items-center justify-center">
-                        <div className="bg-black/30 backdrop-blur-sm rounded-xl p-8 flex flex-col items-center justify-center">
-                          <Camera className="w-16 h-16 text-white/70 mb-3" />
-                          <p className="text-white/80 text-sm text-center">Camera Preview</p>
-                        </div>
+                        <button
+                          className="flex flex-col items-center justify-center focus:outline-none group"
+                          style={{ cursor: 'pointer', background: 'none', border: 'none' }}
+                          onClick={() => {
+                            if (!isStartingRecording) {
+                              setIsStartingRecording(true);
+                              startLiveRecording();
+                            }
+                          }}
+                          disabled={isStartingRecording}
+                        >
+                          <div className="bg-gray-200 dark:bg-gray-700 rounded-full p-6 mb-2 flex items-center justify-center shadow group-hover:shadow-md transition">
+                            <Camera className="w-16 h-16 text-gray-600 dark:text-gray-200" />
+                          </div>
+                          <span className="text-xs text-gray-700 dark:text-gray-300 mt-1 opacity-80">Click to start camera</span>
+                          {isStartingRecording && (
+                            <div className="flex flex-col items-center mt-3">
+                              <motion.div
+                                animate={{ rotate: 360 }}
+                                transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                                className="w-6 h-6 border-2 border-gray-400/30 border-t-gray-700 dark:border-t-gray-200 rounded-full mb-1"
+                              />
+                              <span className="text-xs text-gray-600 dark:text-gray-200">Initializing Camera...</span>
+                            </div>
+                          )}
+                        </button>
                       </div>
                     )}
                   </div>
@@ -1467,7 +1518,6 @@ export const Rooms = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {recordedVideos.map((video, index) => {
                       const analysis = findAnalysisForVideo(video.url);
-
                       return (
                         <div key={index} className="relative group">
                           <video
@@ -1475,8 +1525,16 @@ export const Rooms = () => {
                             controls
                             className="w-full h-48 bg-gray-200 dark:bg-gray-700 rounded-lg"
                           />
-
-
+                          <div className="absolute top-2 right-2 flex gap-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="bg-red-500 hover:bg-red-600 text-white !text-white !hover:text-white opacity-100 transition-opacity hover:cursor-pointer"
+                              onClick={() => removeVideo(index, 'recorded')}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
                           {analyzingVideos.has(video.url) && (
                             <div className="absolute inset-0 bg-black/60 backdrop-blur-sm rounded-lg flex items-center justify-center">
                               <div className="text-center">
@@ -1498,22 +1556,6 @@ export const Rooms = () => {
                               </div>
                             </div>
                           )}
-
-                          <div className="absolute top-2 right-2 flex gap-2">
-                            {analyzingVideos.has(video.url) ? (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="bg-red-500 hover:bg-red-600 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:cursor-pointer"
-                                onClick={() => removeVideo(index, 'recorded')}
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
-                            ) : (
-                              <></>
-                            )}
-                          </div>
-
                           {analysis && showAnalysisResults && (
                             <motion.div
                               className="mt-3 p-4 bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 rounded-lg border border-purple-200 dark:border-purple-700"
@@ -1524,7 +1566,6 @@ export const Rooms = () => {
                               <h4 className="text-sm font-semibold text-purple-700 dark:text-purple-300 mb-3 flex items-center gap-2">
                                 🤖 AI Analysis Results
                               </h4>
-
                               <div className="mb-3">
                                 <h5 className="text-xs font-medium text-green-700 dark:text-green-300 mb-2 flex items-center gap-1">
                                   ✅ Detected Items ({analysis.items.length})
@@ -1557,7 +1598,6 @@ export const Rooms = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {uploadedVideos.map((video, index) => {
                       const analysis = findAnalysisForVideo(video.url);
-
                       return (
                         <div key={index} className="relative group">
                           <video
@@ -1565,7 +1605,16 @@ export const Rooms = () => {
                             controls
                             className="w-full h-48 bg-gray-200 dark:bg-gray-700 rounded-lg"
                           />
-
+                          <div className="absolute top-2 right-2 flex gap-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="bg-red-500 hover:bg-red-600 text-white !text-white !hover:text-white opacity-100 transition-opacity hover:cursor-pointer"
+                              onClick={() => removeVideo(index, 'uploaded')}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
                           {analyzingVideos.has(video.url) && (
                             <div className="absolute inset-0 bg-black/60 backdrop-blur-sm rounded-lg flex items-center justify-center">
                               <div className="text-center">
@@ -1587,18 +1636,6 @@ export const Rooms = () => {
                               </div>
                             </div>
                           )}
-
-                          <div className="absolute top-2 right-2 flex gap-2">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="bg-red-500 hover:bg-red-600 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:cursor-pointer"
-                              onClick={() => removeVideo(index, 'uploaded')}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </div>
-
                           {analysis && showAnalysisResults && (
                             <motion.div
                               className="mt-3 p-4 bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 rounded-lg border border-purple-200 dark:border-purple-700"

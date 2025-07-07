@@ -1,6 +1,8 @@
 import React, { useState } from "react";
 import { ImageUploader } from "../../components/ImageUploader";
 import { ComparisonResult } from "../../components/ComparisonResult";
+import { useLoader } from '@/App';
+import { withLoader } from '@/lib/firebaseService';
 
 export default function ComparisonPage() {
   const [referenceFile, setReferenceFile] = useState<File | null>(null);
@@ -28,7 +30,7 @@ export default function ComparisonPage() {
     try {
       const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
 
-      const res = await fetch("https://api.openai.com/v1/chat/completions", {
+      const res = await withLoader(() => fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
         headers: {
           Authorization: `Bearer ${apiKey}`,
@@ -68,7 +70,7 @@ export default function ComparisonPage() {
           ],
           max_tokens: 500,
         }),
-      });
+      }));
 
       const data = await res.json();
       if (data.error) throw new Error(data.error.message);
