@@ -12,7 +12,8 @@ import {
   Camera,
   Save,
   Download,
-  CheckCircle
+  CheckCircle,
+  DoorOpen
 } from 'lucide-react';
 import { extractFramesFromVideo } from '../../lib/utils';
 import {
@@ -132,7 +133,6 @@ export const Rooms = () => {
         const roomsWithAnalysisStatus = await Promise.all(
           firebaseRooms.map(async (firebaseRoom) => {
             const completedAnalyses = await withLoader(() => getCompletedAnalysesByRoomId(firebaseRoom.id));
-            // Only count analyses for videos that still exist in the room
             const completedVideoUrls = completedAnalyses.map(a => a.cloudinaryUrl || a.videoUrl);
             const hasCompletedAnalysis = firebaseRoom.videos.length > 0 && firebaseRoom.videos.every(url => completedVideoUrls.includes(url));
             return {
@@ -215,7 +215,6 @@ export const Rooms = () => {
       const file = files[0];
       const videoUrl = URL.createObjectURL(file);
       setUploadedVideos(prev => [...prev, { url: videoUrl, file }]);
-      // Do not clear recordedVideos
     }
   };
 
@@ -991,7 +990,6 @@ export const Rooms = () => {
     return found ? found.id : null;
   };
 
-  // Whenever setToast is called, set a timeout to clear it after 3 seconds
   useEffect(() => {
     if (toast) {
       const timeout = setTimeout(() => setToast(null), 3000);
@@ -1066,7 +1064,7 @@ export const Rooms = () => {
               onClick={() => setShowCreateRoom(true)}
               className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold rounded-xl px-6 py-3 flex items-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 hover:cursor-pointer"
             >
-              <Plus className="w-5 h-5" />
+              <DoorOpen className="w-5 h-5" />
               Create Room
             </Button>
           </div>
@@ -1136,7 +1134,7 @@ export const Rooms = () => {
               onClick={() => setShowCreateRoom(true)}
               className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold rounded-xl px-8 py-4 flex items-center gap-3 shadow-lg hover:shadow-xl transition-all duration-300 text-lg hover:cursor-pointer"
             >
-              <Plus className="w-6 h-6" />
+              <DoorOpen className="w-6 h-6" />
               Create Your First Room
             </Button>
           </motion.div>
@@ -1803,7 +1801,7 @@ export const Rooms = () => {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
-                      <Plus className="w-5 h-5 text-white" />
+                      <DoorOpen className="w-5 h-5 text-white" />
                     </div>
                     <div>
                       <h2 className="text-xl font-bold text-gray-900 dark:text-white">
@@ -2100,24 +2098,23 @@ export const Rooms = () => {
                 if (!videoToDelete || !selectedRoom) return;
                 setDeletingVideo(true);
                 try {
-                  // Remove from UI
+
                   setCurrentRoomVideos(prev => prev.filter(url => url !== videoToDelete));
                   setVideoAnalysis(prev => {
                     const newAnalysis = { ...prev };
                     delete newAnalysis[videoToDelete];
                     return newAnalysis;
                   });
-                  // Remove from Firebase
+
                   const newVideos = currentRoomVideos.filter(url => url !== videoToDelete);
                   await updateRoomVideos(selectedRoom.id, newVideos);
-                  // Delete analysis in Firebase
+
                   const analysisId = getAnalysisIdForVideo(videoToDelete);
                   if (analysisId) {
                     await deleteVideoAnalysis(analysisId);
                   }
                   setVideoToDelete(null);
                   setToast({ message: 'Video deleted successfully.', type: 'success' });
-                  // Update hasCompletedAnalysis and videos for the room
                   try {
                     const completedAnalyses = await getCompletedAnalysesByRoomId(selectedRoom.id);
                     const completedVideoUrls = completedAnalyses.map(a => a.cloudinaryUrl || a.videoUrl);
@@ -2127,7 +2124,7 @@ export const Rooms = () => {
                         ? { ...room, hasCompletedAnalysis, videos: newVideos }
                         : room
                     ));
-                    // Notify home page to update analysis status
+
                     window.dispatchEvent(new CustomEvent('home-analysis-status-updated', { detail: { homeId: homeId || (home && home.id) } }));
                   } catch (err) {
                     console.error('Error updating room analysis status:', err);

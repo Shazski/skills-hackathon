@@ -2,7 +2,7 @@ import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router';
-import { CheckCircle, Trash2 } from 'lucide-react';
+import { CheckCircle, Trash2, Pencil, Home as HomeIcon } from 'lucide-react';
 import LOGO from '../../assets/Logo.png';
 import {
   createHome,
@@ -10,7 +10,8 @@ import {
   deleteHome,
   getRoomsByHomeId,
   getCompletedAnalysesByRoomId,
-  type Home as FirebaseHome
+  type Home as FirebaseHome,
+  updateHome
 } from '../../lib/firebaseService';
 
 interface Home {
@@ -46,6 +47,10 @@ export const Home = () => {
     imageUrl: ''
   });
   const [selectedImage, setSelectedImage] = useState<{ url: string; file: File } | null>(null);
+  const [editingHome, setEditingHome] = useState<Home | null>(null);
+  const [editHomeData, setEditHomeData] = useState({ name: '', address: '', imageUrl: '' });
+  const [editImage, setEditImage] = useState<{ url: string; file: File } | null>(null);
+  const [savingEdit, setSavingEdit] = useState(false);
 
   const handleCardClick = (homeId: string) => {
     navigate(`/rooms/${homeId}`);
@@ -89,7 +94,6 @@ export const Home = () => {
       const rooms = await getRoomsByHomeId(homeId);
       if (rooms.length === 0) return { hasAllRoomsAnalyzed: false, hasAnyRoomAnalyzed: false };
       const analysisPromises = rooms.map(room => getCompletedAnalysesByRoomId(room.id).then(analyses => {
-        // Only count as analyzed if all videos have completed analysis
         const completedVideoUrls = analyses.map(a => a.cloudinaryUrl || a.videoUrl);
         const allAnalyzed = room.videos.length > 0 && room.videos.every(url => completedVideoUrls.includes(url));
         return allAnalyzed;
@@ -273,7 +277,7 @@ export const Home = () => {
   };
 
   return (
-    <div className="px-4 md:px-12 pb-20 md:pb-4">
+    <div className="px-1 md:px-2 pb-20 md:pb-4">
       {toast && (
         <motion.div
           className="fixed top-4 right-4 z-[9999] max-w-sm"
@@ -343,7 +347,7 @@ export const Home = () => {
             onClick={() => setShowCreateHome(true)}
             className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold rounded-xl px-6 py-3 flex items-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer"
           >
-            <span className="text-lg">🏠</span>
+            <HomeIcon className="w-5 h-5" />
             Create Home
           </Button>
         )}
@@ -375,7 +379,7 @@ export const Home = () => {
         </motion.div>
       )}
 
-      <div className="flex flex-wrap justify-center md:justify-evenly gap-6 mt-8 mb-20">
+      <div className="flex flex-wrap justify-center md:justify-evenly gap-3 mt-8 mb-20">
         {loading ? (
 
           [...Array(6)].map((_, i) => (
@@ -454,43 +458,51 @@ export const Home = () => {
                 )}
               </div>
 
-
-              {!home.hasAnyRoomAnalyzed && (
-                <motion.div
-                  className="absolute top-4 right-4 z-10"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setShowDeleteConfirm(home.id);
-                  }}
-                >
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-red-500 hover:text-red-600 p-2 rounded-full cursor-pointer"
-                    disabled={deletingHome === home.id}
-                    title="Delete Home"
-                  >
-                    {deletingHome === home.id ? (
-                      <motion.div
-                        animate={{ rotate: 360 }}
-                        transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                        className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full"
-                      />
-                    ) : (
-                      <Trash2 className="w-4 h-4" />
-                    )}
-                  </Button>
-                </motion.div>
-              )}
-
               <div className="p-4">
                 <motion.h3
-                  className="text-lg font-bold text-gray-900 dark:text-white mb-2"
+                  className="text-lg font-bold text-gray-900 dark:text-white mb-2 flex items-center justify-between"
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ delay: 0.3 + i * 0.1 }}
                 >
-                  {home.name}
+                  <span>{home.name}</span>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-gray-400 hover:text-blue-600 p-1 rounded-full cursor-pointer"
+                      title="Edit Home"
+                      onClick={e => {
+                        e.stopPropagation();
+                        setEditingHome(home);
+                        setEditHomeData({ name: home.name, address: home.address, imageUrl: home.imageUrl || '' });
+                        setEditImage(null);
+                      }}
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-red-400 hover:text-red-600 p-1 rounded-full cursor-pointer"
+                      title="Delete Home"
+                      disabled={deletingHome === home.id}
+                      onClick={e => {
+                        e.stopPropagation();
+                        setShowDeleteConfirm(home.id);
+                      }}
+                    >
+                      {deletingHome === home.id ? (
+                        <motion.div
+                          animate={{ rotate: 360 }}
+                          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                          className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full"
+                        />
+                      ) : (
+                        <Trash2 className="w-4 h-4" />
+                      )}
+                    </Button>
+                  </div>
                 </motion.h3>
                 <motion.div
                   className="flex items-center gap-3 mb-4 text-sm text-gray-600 dark:text-gray-400"
@@ -664,7 +676,7 @@ export const Home = () => {
                       </>
                     ) : (
                       <>
-                        <span className="text-lg">🏠</span>
+                        <HomeIcon className="w-5 h-5" />
                         Create Home
                       </>
                     )}
@@ -762,7 +774,7 @@ export const Home = () => {
                   }}
                   className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold flex items-center gap-2 cursor-pointer"
                 >
-                  <span className="text-lg">🏠</span>
+                  <HomeIcon className="w-5 h-5" />
                   Open Home
                 </Button>
               </motion.div>
@@ -868,6 +880,123 @@ export const Home = () => {
                   )}
                 </Button>
               </motion.div>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+
+      {editingHome && (
+        <motion.div
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          onClick={() => setEditingHome(null)}
+        >
+          <motion.div
+            className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full"
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.9, opacity: 0 }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="p-6 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
+                  <span className="text-2xl">🏠</span>
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900 dark:text-white">Edit Home</h2>
+                  <p className="text-gray-600 dark:text-gray-400 text-sm">Update your home details</p>
+                </div>
+              </div>
+              <Button variant="ghost" size="sm" onClick={() => setEditingHome(null)} className="text-gray-500 hover:text-gray-700 cursor-pointer">✕</Button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Home Name</label>
+                <input
+                  type="text"
+                  value={editHomeData.name}
+                  onChange={e => setEditHomeData(prev => ({ ...prev, name: e.target.value }))}
+                  className="w-full px-4 py-3 border-2 border-gray-200 dark:border-gray-700 focus:border-yellow-500 dark:focus:border-yellow-400 rounded-xl transition-all duration-300 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Address</label>
+                <input
+                  type="text"
+                  value={editHomeData.address}
+                  onChange={e => setEditHomeData(prev => ({ ...prev, address: e.target.value }))}
+                  className="w-full px-4 py-3 border-2 border-gray-200 dark:border-gray-700 focus:border-yellow-500 dark:focus:border-yellow-400 rounded-xl transition-all duration-300 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Home Image</label>
+                <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl p-6 text-center hover:border-yellow-500 dark:hover:border-yellow-400 transition-colors">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={e => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        const url = URL.createObjectURL(file);
+                        setEditImage({ url, file });
+                      }
+                    }}
+                    className="hidden"
+                    id="edit-home-image-upload"
+                  />
+                  <label htmlFor="edit-home-image-upload" className="cursor-pointer flex flex-col items-center gap-2">
+                    {editImage?.url ? (
+                      <img src={editImage.url} alt="Home" className="w-24 h-24 object-cover rounded-xl mx-auto" />
+                    ) : editHomeData.imageUrl ? (
+                      <img src={editHomeData.imageUrl} alt="Home" className="w-24 h-24 object-cover rounded-xl mx-auto" />
+                    ) : (
+                      <span className="text-gray-400">Click to upload image</span>
+                    )}
+                    <span className="text-xs text-gray-500">JPG, PNG, or GIF</span>
+                  </label>
+                  {editImage?.url && (
+                    <button type="button" className="mt-2 text-xs text-red-500 hover:underline" onClick={() => setEditImage(null)}>
+                      Remove Image
+                    </button>
+                  )}
+                </div>
+              </div>
+              <div className="flex justify-end gap-2 mt-6">
+                <Button variant="ghost" onClick={() => setEditingHome(null)} className="px-6">Cancel</Button>
+                <Button
+                  className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold px-6"
+                  disabled={savingEdit}
+                  onClick={async () => {
+                    setSavingEdit(true);
+                    let imageUrl = editHomeData.imageUrl;
+                    try {
+                      if (editImage?.file) {
+                        imageUrl = await uploadToCloudinary(editImage.file);
+                      }
+                      await updateHome(editingHome.id, {
+                        name: editHomeData.name,
+                        address: editHomeData.address,
+                        imageUrl,
+                      });
+                      setHomes(prev => prev.map(h => h.id === editingHome.id ? { ...h, name: editHomeData.name, address: editHomeData.address, imageUrl } : h));
+                      setEditingHome(null);
+                      setEditImage(null);
+                      setToast({ message: 'Home updated successfully!', type: 'success' });
+                      setTimeout(() => setToast(null), 3000);
+                    } catch (err) {
+                      setToast({ message: 'Failed to update home. Please try again.', type: 'error' });
+                      setTimeout(() => setToast(null), 4000);
+                    } finally {
+                      setSavingEdit(false);
+                    }
+                  }}
+                >
+                  {savingEdit ? 'Saving...' : 'Save Changes'}
+                </Button>
+              </div>
             </div>
           </motion.div>
         </motion.div>

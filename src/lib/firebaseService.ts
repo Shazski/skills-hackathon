@@ -329,6 +329,19 @@ export const getHomeById = async (homeId: string): Promise<Home | null> => {
   }
 };
 
+export const updateHome = async (homeId: string, data: Partial<CreateHomeData>): Promise<void> => {
+  try {
+    const homeRef = doc(db, 'homes', homeId);
+    await withLoader(() => updateDoc(homeRef, {
+      ...data,
+      updatedAt: serverTimestamp(),
+    }));
+  } catch (error) {
+    console.error('Error updating home:', error);
+    throw error;
+  }
+};
+
 export const deleteHome = async (homeId: string): Promise<void> => {
   try {
     console.log('Deleting home with ID:', homeId);
