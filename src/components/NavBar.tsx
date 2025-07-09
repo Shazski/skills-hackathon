@@ -178,23 +178,24 @@ export function NavBar() {
             </motion.div>
           )} */}
 
-          <div className='flex items-center space-x-3 cursor-pointer'>
+          <div className="flex items-center gap-3">
+              {/* Search Bar */}
             {!isAuthPage && (
               <motion.div
-                className="flex-1 max-w-md relative"
+                className="hidden md:block flex-1 max-w-md relative"
                 ref={searchRef}
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: 0.2 }}
               >
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <div className="relative h-10">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 text-lg" />
                   <input
                     type="text"
                     placeholder="Search homes and rooms..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-10 pr-10 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full h-full pl-10 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder:text-sm dark:placeholder:text-sm placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                   />
                   {searchQuery && (
                     <button
@@ -282,33 +283,29 @@ export function NavBar() {
               </motion.div>
             )}
 
-            <motion.div
-              className="flex items-center space-x-3"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.4 }}
+            {/* Theme Toggle */}
+            <div
+              className="flex items-center justify-center"
             >
-              <motion.div
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.9 }}
-              >
-                <ModeToggle />
-              </motion.div>
+              <ModeToggle />
+            </div>
 
-              {!isAuthPage && (
-                <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.95 }}>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleLogout}
-                    className="flex items-center space-x-1 border border-gray-300 dark:border-gray-600"
-                  >
-                    <LogOut className="h-4 w-4" />
-                    <span>Logout</span>
-                  </Button>
-                </motion.div>
-              )}
-            </motion.div>
+            {/* Logout Button */}
+            {!isAuthPage && (
+              <div
+                className="p-[1px] h-10 flex items-center border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gradient-to-r from-indigo-500 to-purple-500"
+              >
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleLogout}
+                  className="flex items-center md:space-x-1 text-gray-500 dark:text-gray-200 h-9 bg-white dark:bg-gray-900 "
+                >
+                  <LogOut className="h-4 w-4" />
+                  <span className='hidden md:block'>Logout</span>
+                </Button>
+              </div>
+            )}
           </div>
         </div>
       </div>

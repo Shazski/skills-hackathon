@@ -420,7 +420,7 @@ export const Home = () => {
             </p>
             <Button
               onClick={() => setShowCreateHome(true)}
-              className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold rounded-xl px-8 py-4 flex items-center gap-3 shadow-lg hover:shadow-xl transition-all duration-300 text-lg cursor-pointer"
+              className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold rounded-md px-8 py-4 flex items-center gap-3 shadow-lg hover:shadow-xl transition-all duration-300 text-lg cursor-pointer"
             >
               <span className="text-2xl">🏠</span>
               Create Your First Home
@@ -513,7 +513,7 @@ export const Home = () => {
                   <span>📍 {home.address}</span>
                 </motion.div>
 
-                <div className="flex gap-2">
+                {/* <div className="flex gap-2">
                   <Button
                     onClick={() => handleCardClick(home.id)}
                     className="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg cursor-pointer px-2 py-1"
@@ -527,7 +527,7 @@ export const Home = () => {
                   >
                     ✉️ Send
                   </Button>
-                </div>
+                </div> */}
               </div>
             </motion.div>
           ))
