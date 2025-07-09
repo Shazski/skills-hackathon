@@ -8,6 +8,7 @@ import { Home } from "@/pages/home/page";
 import { Rooms } from "@/pages/rooms/page";
 import VideoAnalysisPage from "@/pages/video-analysis/page";
 import ComparisonPage from "@/pages/comparison/page";
+import RoomVideoManagerPage from '@/pages/rooms/RoomVideoManagerPage';
 
 export const router = createBrowserRouter([
   {
@@ -29,6 +30,10 @@ export const router = createBrowserRouter([
       {
         path: 'rooms/:homeId',
         element: <Rooms />
+      },
+      {
+        path: 'homes/:homeId/rooms/:roomId',
+        element: <RoomVideoManagerPage />
       },
       {
         path: 'video-analysis',

@@ -1,7 +1,7 @@
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
 import { useState, useRef, useEffect } from 'react';
-import { useParams, Link } from 'react-router';
+import { useParams, Link, useNavigate } from 'react-router';
 import {
   Video,
   Upload,
@@ -56,6 +56,7 @@ interface Home {
 
 export const Rooms = () => {
   const { homeId } = useParams();
+  const navigate = useNavigate();
   const [rooms, setRooms] = useState<Room[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -772,51 +773,9 @@ export const Rooms = () => {
     }
   };
 
-  const handleRoomClick = async (room: Room) => {
-    console.log('Opening room:', room);
-    console.log('Room videos:', room.videos);
-
-    setSelectedRoom(room);
-    setCurrentRoomVideos(room.videos);
-
-
-    if (videoRef.current) {
-      videoRef.current.srcObject = null;
-    }
-    setIsLiveRecording(false);
-
-    try {
-      const firebaseAnalyses = await getVideoAnalysesByRoomId(room.id);
-      setFirebaseAnalyses(firebaseAnalyses);
-
-      const firebaseResults: { [videoUrl: string]: { items: string[]; missingItems: string[] } } = {};
-
-      firebaseAnalyses.forEach((analysis: VideoAnalysis) => {
-        if (analysis.status === 'completed') {
-          const keyUrl = analysis.cloudinaryUrl || analysis.videoUrl;
-          firebaseResults[keyUrl] = {
-            items: analysis.items,
-            missingItems: analysis.missingItems
-          };
-        }
-      });
-
-      console.log('Processed Firebase results:', firebaseResults);
-
-      const localStorageResults = loadAnalysisResults(room.id);
-      console.log('LocalStorage results:', localStorageResults);
-
-      const mergedResults = { ...localStorageResults, ...firebaseResults };
-      console.log('Merged analysis results:', mergedResults);
-
-      setVideoAnalysis(mergedResults);
-      setShowAnalysisResults(Object.keys(mergedResults).length > 0);
-    } catch (error) {
-      console.error('Error loading analysis results:', error);
-
-      const savedResults = loadAnalysisResults(room.id);
-      setVideoAnalysis(savedResults);
-      setShowAnalysisResults(Object.keys(savedResults).length > 0);
+  const handleRoomClick = (room: Room) => {
+    if (homeId) {
+      navigate(`/homes/${homeId}/rooms/${room.id}`);
     }
   };
 

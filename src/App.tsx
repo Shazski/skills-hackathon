@@ -32,7 +32,7 @@ export const App = ({ children }: { children: ReactNode }) => {
         <div className="h-screen">
           <NavBar />
           {loading && <Loader />}
-          <div className="pt-20 h-full overflow-y-auto scrollbar-hide">
+          <div className="pt-16 h-full overflow-y-auto scrollbar-hide">
             {isAuthPage ? (
               <div className="flex justify-center items-center min-h-[calc(100vh-5rem)] w-full">
                 {children}
