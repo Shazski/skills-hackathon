@@ -345,7 +345,7 @@ export const Home = () => {
         {homes.length > 0 && (
           <Button
             onClick={() => setShowCreateHome(true)}
-            className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold rounded-xl px-6 py-3 flex items-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer"
+            className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold rounded-md px-6 py-3 flex items-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer"
           >
             <HomeIcon className="w-5 h-5" />
             Create Home
@@ -379,7 +379,7 @@ export const Home = () => {
         </motion.div>
       )}
 
-      <div className="flex flex-wrap justify-center md:justify-evenly gap-3 mt-8 mb-20">
+      <div className="flex flex-wrap justify-center gap-6 mt-8 mb-20">
         {loading ? (
 
           [...Array(6)].map((_, i) => (
