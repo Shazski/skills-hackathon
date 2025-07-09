@@ -990,19 +990,20 @@ export const Rooms = () => {
       )}
 
       <motion.div
-        className="flex items-center gap-4 mb-8"
+        className="relative flex items-center justify-center mb-8"
         initial={{ opacity: 0, x: -30 }}
         animate={{ opacity: 1, x: 0 }}
         transition={{ duration: 0.5 }}
       >
-        <Link to="/">
+        <Link to="/" className="absolute left-0">
           <Button variant="ghost" size="sm" className="flex items-center gap-2 cursor-pointer">
             <ArrowLeft className="w-4 h-4" />
             Back to Homes
           </Button>
         </Link>
+
         <motion.h1
-          className="text-2xl md:text-3xl font-bold text-gray-800 dark:text-gray-100"
+          className="text-2xl md:text-3xl font-bold text-gray-800 dark:text-gray-100 text-center"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.2 }}
@@ -1021,7 +1022,7 @@ export const Rooms = () => {
           <div className="flex gap-3">
             <Button
               onClick={() => setShowCreateRoom(true)}
-              className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold rounded-xl px-6 py-3 flex items-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 hover:cursor-pointer"
+              className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold rounded-md px-6 py-3 flex items-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 hover:cursor-pointer"
             >
               <DoorOpen className="w-5 h-5" />
               Create Room
@@ -1091,7 +1092,7 @@ export const Rooms = () => {
             </p>
             <Button
               onClick={() => setShowCreateRoom(true)}
-              className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold rounded-xl px-8 py-4 flex items-center gap-3 shadow-lg hover:shadow-xl transition-all duration-300 text-lg hover:cursor-pointer"
+              className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold rounded-md px-8 py-4 flex items-center gap-3 shadow-lg hover:shadow-xl transition-all duration-300 text-lg hover:cursor-pointer"
             >
               <DoorOpen className="w-6 h-6" />
               Create Your First Room
