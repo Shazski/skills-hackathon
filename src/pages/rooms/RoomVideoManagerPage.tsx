@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { useParams } from 'react-router';
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
@@ -16,7 +16,9 @@ import {
   updateRoomVideos,
   createVideoAnalysis,
   updateVideoAnalysisResults,
-  getCompletedAnalysesByRoomId
+  getCompletedAnalysesByRoomId,
+  createBatchVideoAnalysis,
+  getBatchAnalysesByRoomId
 } from '../../lib/firebaseService';
 import type { VideoAnalysis } from '../../lib/firebaseService';
 import { extractFramesFromVideo } from '../../lib/utils';
@@ -85,6 +87,18 @@ const RoomVideoManagerPage = () => {
   // Add a state for delete confirmation
   const [videoToDelete, setVideoToDelete] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  // New state for batch analysis result
+  const [batchAnalysisResult, setBatchAnalysisResult] = useState<string[]>([]);
+  const [isBatchAnalyzing, setIsBatchAnalyzing] = useState(false);
+  // Add state for batch analyses
+  const [batchAnalyses, setBatchAnalyses] = useState<any[]>([]);
+
+  // Combine all detected items from analyzed videos (remove duplicates)
+  const combinedAnalysisResult = useMemo(() => {
+    const allItems = Object.values(videoAnalysis)
+      .flatMap(result => result.items || []);
+    return Array.from(new Set(allItems));
+  }, [videoAnalysis]);
 
   // Fetch home and room data
   useEffect(() => {
@@ -122,6 +136,18 @@ const RoomVideoManagerPage = () => {
     }
     fetchAnalyses();
   }, [room && room.id, room && room.videos && room.videos.join(",")]);
+
+  // Fetch batch analyses when room changes
+  useEffect(() => {
+    async function fetchBatchAnalyses() {
+      if (!room || !room.id) return;
+      try {
+        const batches = await getBatchAnalysesByRoomId(room.id);
+        setBatchAnalyses(batches);
+      } catch { }
+    }
+    fetchBatchAnalyses();
+  }, [room && room.id]);
 
   // Video recording logic
   const startLiveRecording = async () => {
@@ -278,7 +304,12 @@ const RoomVideoManagerPage = () => {
       setVideoProgress(prev => ({ ...prev, [videoUrl]: 100 }));
       setTimeout(() => setVideoProgress(prev => { const { [videoUrl]: _, ...rest } = prev; return rest; }), 1000);
       if (room) {
-        const mainCloudinaryUrl = cloudinaryUrl || (frameImageUrls && frameImageUrls.length > 0 ? frameImageUrls[0] : undefined);
+        // Wait for Cloudinary upload to finish if not already done
+        let mainCloudinaryUrl = cloudinaryUrl || videoCloudinaryUrls[videoUrl];
+        if (!mainCloudinaryUrl && videoFile) {
+          mainCloudinaryUrl = await uploadToCloudinary(videoFile);
+          setVideoCloudinaryUrls(prev => ({ ...prev, [videoUrl]: mainCloudinaryUrl! }));
+        }
         if (mainCloudinaryUrl) {
           const firebaseAnalysisId = await createVideoAnalysis(room.id, videoUrl, mainCloudinaryUrl);
           await updateVideoAnalysisResults(firebaseAnalysisId, analysisData.items, [], mainCloudinaryUrl);
@@ -322,6 +353,163 @@ const RoomVideoManagerPage = () => {
     } finally {
       setIsProcessing(false);
       setProcessingProgress(0);
+    }
+  };
+
+  // Batch analysis function
+  const analyzeAllVideosAsBatch = async () => {
+    setIsBatchAnalyzing(true);
+    setBatchAnalysisResult([]);
+    try {
+      // Gather all new videos
+      const allVideos = [...recordedVideos, ...uploadedVideos];
+
+      // First, upload all videos to Cloudinary
+      console.log('Uploading videos to Cloudinary...');
+      await Promise.all(allVideos.map(async (video) => {
+        if (video.file && !videoCloudinaryUrls[video.url]) {
+          try {
+            const cloudinaryUrl = await uploadToCloudinary(video.file);
+            setVideoCloudinaryUrls(prev => ({ ...prev, [video.url]: cloudinaryUrl }));
+            console.log('Uploaded video:', video.url, 'to:', cloudinaryUrl);
+          } catch (err) {
+            console.error('Failed to upload video:', video.url, err);
+            throw err;
+          }
+        }
+      }));
+
+      let allFrames: File[] = [];
+      // Extract frames from each video
+      for (const video of allVideos) {
+        if (video.file) {
+          const frames = await extractFramesFromVideo(video.file, 2); // 2 frames per video (adjust as needed)
+          frames.forEach((frame, i) => {
+            allFrames.push(new File([frame], `frame_${video.url}_${i}.jpg`, { type: 'image/jpeg' }));
+          });
+        }
+      }
+      // Upload all frames to Cloudinary
+      const frameImageUrls: string[] = [];
+      for (const frameFile of allFrames) {
+        const url = await uploadToCloudinary(frameFile);
+        frameImageUrls.push(url);
+      }
+      // Prepare OpenAI Vision API call
+      const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
+      if (!apiKey) throw new Error('OpenAI API key is missing.');
+      const openaiContent = [
+        {
+          type: 'text',
+          text: 'Please analyze these video frames (from multiple videos) and list all the items, furniture, appliances, and objects you can see. Focus on items that would be relevant for a home or room analysis.'
+        },
+        ...frameImageUrls.map(url => ({
+          type: 'image_url',
+          image_url: { url }
+        }))
+      ];
+      const res = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "gpt-4o",
+          messages: [
+            {
+              role: "system",
+              content: `You are an expert at analyzing video content and identifying objects, items, and elements present in videos.\n\nYour task is to watch the provided video frames (from multiple videos) and create a comprehensive list of all visible items, objects, furniture, appliances, decorations, and any other notable elements you can identify.\n\nPlease provide your response in the following format:\n- List each item on a separate line\n- Be specific and descriptive\n- Include furniture, electronics, decorations, appliances, etc.\n- Mention the approximate location or context if relevant\n- Focus on items that would be important for real estate or home analysis\n\nFormat your response as a clean list with each item clearly described.`,
+            },
+            {
+              role: "user",
+              content: openaiContent,
+            },
+          ],
+          max_tokens: 1000,
+        }),
+      });
+      if (!res.ok) {
+        const errorText = await res.text();
+        throw new Error(`OpenAI API error: ${res.status} - ${errorText}`);
+      }
+      const data = await res.json();
+      if (data.error) {
+        throw new Error(data.error.message);
+      }
+      const analysisResult = data.choices?.[0]?.message?.content || "No items detected in the videos.";
+      const lines = analysisResult.split('\n').filter((line: string) => line.trim());
+      const items: string[] = [];
+      lines.forEach((line: string) => {
+        if (line.includes('-') || line.includes('•') || line.includes('*')) {
+          const item = line.replace(/^[-•*]\s*/, '').trim();
+          if (item) items.push(item);
+        } else if (line.match(/^\d+\./)) {
+          const item = line.replace(/^\d+\.\s*/, '').trim();
+          if (item) items.push(item);
+        } else if (line.trim() && !line.toLowerCase().includes('difference') && !line.toLowerCase().includes('image')) {
+          items.push(line.trim());
+        }
+      });
+      setBatchAnalysisResult(items);
+    } catch (err) {
+      setBatchAnalysisResult(["Failed to analyze videos as a batch."]);
+    } finally {
+      setIsBatchAnalyzing(false);
+    }
+  };
+
+  // 2. Add saveBatchToRoom function
+  const saveBatchToRoom = async () => {
+    console.log(room, "room data");
+
+    if (!room) {
+      setError('Room not loaded!');
+      return;
+    }
+    setIsProcessing(true);
+    try {
+      // Upload all new videos to Cloudinary if not already
+      const allVideos = [...recordedVideos, ...uploadedVideos];
+      await Promise.all(allVideos.map(async (video) => {
+        let waited = 0;
+        while (!videoCloudinaryUrls[video.url]) {
+          await new Promise(res => setTimeout(res, 200));
+          waited += 200;
+          if (waited > 20000) throw new Error('Cloudinary upload timeout');
+        }
+      }));
+      const cloudinaryUrls = allVideos.map(video => videoCloudinaryUrls[video.url]);
+      // Save a single batch entry to Firebase
+      const batchEntry = {
+        videoUrls: cloudinaryUrls,
+        items: batchAnalysisResult,
+        type: 'batch',
+        createdAt: new Date(),
+      };
+      await createBatchVideoAnalysis(room.id, batchEntry);
+      const batchKey = `batch:${Date.now()}`;
+      await updateRoomVideos(room.id, [...(room.videos || []), batchKey]);
+      setRoom(prev => prev ? { ...prev, videos: [...(prev.videos || []), batchKey] } : null);
+
+      // Refresh batch analyses to show the new one in the right column
+      try {
+        const updatedBatches = await getBatchAnalysesByRoomId(room.id);
+        setBatchAnalyses(updatedBatches);
+      } catch (err) {
+        console.error('Failed to refresh batch analyses:', err);
+      }
+
+      setRecordedVideos([]);
+      setUploadedVideos([]);
+      setBatchAnalysisResult([]);
+      setSuccess('Batch videos and AI results saved!');
+      setShowSuccessModal(true);
+    } catch (err) {
+      setError('Failed to save batch analysis to Firebase.');
+      console.error('Save batch error:', err);
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -405,105 +593,97 @@ const RoomVideoManagerPage = () => {
               </div>
             </div>
           </div>
-          {/* Upload Section */}
-          <div className="mb-4">
-            <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-2 flex items-center gap-2">
+          {/* Upload Video Option */}
+          <div className="mb-4 w-full">
+            <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-2 flex items-center gap-2 w-full">
               <Upload className="w-5 h-5" />
-              Upload Videos
+              <span className="flex-1">Upload Video</span>
             </h3>
-            <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl p-4 text-center">
-              <input type="file" multiple accept="video/*" onChange={handleFileUpload} className="hidden" id="video-upload" />
-              <label htmlFor="video-upload" className="cursor-pointer flex flex-col items-center gap-3">
-                <Upload className="w-8 h-8 text-gray-400" />
-                <div>
-                  <p className="text-gray-600 dark:text-gray-400">Click to upload videos or drag and drop</p>
-                  <p className="text-sm text-gray-500">MP4, WebM, or MOV files</p>
-                </div>
+            <div
+              className="w-full flex flex-col gap-2"
+              onDragOver={e => { e.preventDefault(); e.stopPropagation(); }}
+              onDrop={e => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                  handleFileUpload({ target: { files: e.dataTransfer.files } } as any);
+                }
+              }}
+            >
+              <label
+                htmlFor="video-upload-input"
+                className="flex flex-col items-center justify-center w-full h-40 border-2 border-dotted border-blue-400 dark:border-blue-600 rounded-xl cursor-pointer bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-all duration-200 p-6 text-center gap-3"
+                style={{ minHeight: '10rem' }}
+              >
+                <Upload className="w-10 h-10 text-blue-500 mb-2" />
+                <span className="text-base font-semibold text-blue-700 dark:text-blue-200">Click or drag video file here to upload</span>
+                <span className="text-xs text-gray-500 dark:text-gray-400">MP4, WebM, or MOV (max 100MB)</span>
+                <input
+                  id="video-upload-input"
+                  type="file"
+                  accept="video/*"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                />
               </label>
             </div>
           </div>
+          {/* Batch AI Analysis Results below upload option */}
+          {batchAnalysisResult.length > 0 && (
+            <motion.div className="mb-6 p-4 bg-gradient-to-r from-green-50 to-blue-50 dark:from-green-900/20 dark:to-blue-900/20 rounded-lg border border-green-200 dark:border-green-700">
+              <h4 className="text-base font-semibold text-green-700 dark:text-green-300 mb-3 flex items-center gap-2">
+                🤖 Batch AI Analysis Results (All Videos as One)
+              </h4>
+              <ul className="list-disc pl-6 text-gray-800 dark:text-gray-200">
+                {batchAnalysisResult.map((item, idx) => (
+                  <li key={idx}>{item}</li>
+                ))}
+              </ul>
+              {/* Save to Room button for batch */}
+              <Button className="mt-4 bg-gradient-to-r from-green-600 to-blue-600 text-white font-semibold py-2 px-6 rounded-xl shadow hover:scale-105 transition-all hover:cursor-pointer" onClick={saveBatchToRoom} disabled={isProcessing || !room}>
+                {isProcessing ? 'Saving...' : 'Save to Room'}
+              </Button>
+            </motion.div>
+          )}
           {/* New Videos Section: reduce margin */}
           {(recordedVideos.length > 0 || uploadedVideos.length > 0) && (
             <div className="mb-4">
               <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-2">New Videos</h3>
-              {/* Analyze All Button */}
-              {([...recordedVideos, ...uploadedVideos].some(v => !videoAnalysis[v.url]) && !analyzingVideos.size) && (
-                <Button
-                  className="mb-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold py-2 px-6 rounded-xl shadow hover:scale-105 transition-all hover:cursor-pointer"
-                  onClick={async () => {
-                    await Promise.all(
-                      [...recordedVideos, ...uploadedVideos].map((video, index) =>
-                        !videoAnalysis[video.url] ? analyzeVideoWithAI(video.url, index, video.file, undefined) : null
-                      )
-                    );
-                  }}
-                  disabled={analyzingVideos.size > 0}
-                >
-                  {analyzingVideos.size > 0 ? (
-                    <span className="flex items-center gap-2">
-                      <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path></svg>
-                      Analyzing...
-                    </span>
-                  ) : (
-                    'Analyze Room'
-                  )}
-                </Button>
-              )}
-              {/* In the New Videos section, above the grid, add the Save All to Room button */}
-              {/* Only show Save All to Room button if all new videos are analyzed and none are being analyzed */}
-              {([...recordedVideos, ...uploadedVideos].length > 0 &&
-                [...recordedVideos, ...uploadedVideos].every(v => videoAnalysis[v.url]) &&
-                ![...recordedVideos, ...uploadedVideos].some(v => analyzingVideos.has(v.url)) &&
-                [...recordedVideos, ...uploadedVideos].some(v => !room?.videos?.includes(v.url))
-              ) && (
+              {/* Analyze Buttons Row */}
+              <div className="flex flex-row gap-3 mb-3">
+                {/* Per-video Analyze Button */}
+                {([...recordedVideos, ...uploadedVideos].some(v => !videoAnalysis[v.url]) && !analyzingVideos.size && !isBatchAnalyzing && batchAnalysisResult.length === 0) && (
                   <Button
-                    className="mb-3 bg-gradient-to-r from-green-600 to-blue-600 text-white font-semibold py-2 px-6 rounded-xl shadow hover:scale-105 transition-all hover:cursor-pointer"
+                    className="bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold py-2 px-6 rounded-xl shadow hover:scale-105 transition-all hover:cursor-pointer"
                     onClick={async () => {
-                      setIsProcessing(true);
-                      // 1. Upload any videos that are not yet on Cloudinary and collect their URLs
-                      const videosToSave = [...recordedVideos, ...uploadedVideos].filter(v => videoAnalysis[v.url] && !room?.videos?.includes(v.url));
-                      // Wait for all Cloudinary uploads to finish
-                      await Promise.all(videosToSave.map(async (video) => {
-                        while (!videoCloudinaryUrls[video.url]) {
-                          await new Promise(res => setTimeout(res, 200));
-                        }
-                      }));
-                      // 2. Save all new Cloudinary URLs to the room at once
-                      const newCloudinaryUrls = videosToSave.map(video => videoCloudinaryUrls[video.url]);
-                      const allVideoUrls = Array.from(new Set([...(room.videos || []), ...newCloudinaryUrls]));
-                      await updateRoomVideos(room.id, allVideoUrls);
-                      setRoom(prev => prev ? { ...prev, videos: allVideoUrls } : null);
-                      // 3. Save all analyses in parallel, using the correct Cloudinary URL
-                      await Promise.all(videosToSave.map(async (video) => {
-                        const cloudinaryUrl = videoCloudinaryUrls[video.url];
-                        if (!cloudinaryUrl) return;
-                        const analysisData = videoAnalysis[video.url];
-                        try {
-                          const firebaseAnalysisId = await createVideoAnalysis(room.id, cloudinaryUrl, cloudinaryUrl);
-                          await updateVideoAnalysisResults(firebaseAnalysisId, analysisData.items, analysisData.missingItems, cloudinaryUrl);
-                        } catch (err) {
-                          setError('Failed to save AI results to Firebase.');
-                          return;
-                        }
-                        setRecordedVideos(prev => prev.filter(v => v.url !== video.url));
-                        setUploadedVideos(prev => prev.filter(v => v.url !== video.url));
-                      }));
-                      setSuccess('All videos and AI results saved!');
-                      setShowSuccessModal(true);
-                      setIsProcessing(false);
+                      await Promise.all(
+                        [...recordedVideos, ...uploadedVideos].map((video, index) =>
+                          !videoAnalysis[video.url] ? analyzeVideoWithAI(video.url, index, video.file, undefined) : null
+                        )
+                      );
                     }}
-                    disabled={isProcessing}
+                    disabled={analyzingVideos.size > 0}
                   >
-                    {isProcessing ? (
+                    {analyzingVideos.size > 0 ? (
                       <span className="flex items-center gap-2">
                         <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path></svg>
-                        Saving...
+                        Analyzing...
                       </span>
                     ) : (
-                      'Save to Room'
+                      'Analyze Room'
                     )}
                   </Button>
                 )}
+                {/* Analyze All Videos as One Button */}
+                {([...recordedVideos, ...uploadedVideos].length > 1 && !isBatchAnalyzing && batchAnalysisResult.length === 0) && (
+                  <Button
+                    className="bg-gradient-to-r from-purple-600 to-blue-600 text-white font-semibold py-2 px-6 rounded-xl shadow hover:scale-105 transition-all hover:cursor-pointer"
+                    onClick={analyzeAllVideosAsBatch}
+                  >
+                    Analyze All Videos as One
+                  </Button>
+                )}
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {[...recordedVideos, ...uploadedVideos].map((video, index) => (
                   <div key={index} className="relative group mb-6 w-full">
@@ -524,8 +704,8 @@ const RoomVideoManagerPage = () => {
                       <span className="text-sm font-semibold text-gray-900 dark:text-white truncate">{video.file?.name || `Video ${index + 1}`}</span>
                       <span className="text-xs text-gray-500 dark:text-gray-400">{video.file ? new Date(video.file.lastModified).toLocaleString() : ''}</span>
                     </div>
-                    {/* Remove per-video Analyze button */}
                     {/* Loader and AI results for new videos */}
+                    {/* Per-video loader (unchanged) */}
                     {analyzingVideos.has(video.url) && (
                       <div className="absolute inset-0 flex items-center justify-center z-20">
                         <div className="absolute inset-0 bg-white/60 dark:bg-gray-900/60 backdrop-blur-sm rounded-lg" />
@@ -549,24 +729,62 @@ const RoomVideoManagerPage = () => {
                         </motion.div>
                       </div>
                     )}
+                    {/* Batch loader for all videos as one */}
+                    {isBatchAnalyzing && (
+                      <div className="absolute inset-0 flex items-center justify-center z-20">
+                        <div className="absolute inset-0 bg-white/60 dark:bg-gray-900/60 backdrop-blur-sm rounded-lg" />
+                        <motion.div className="relative flex flex-col items-center gap-4" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
+                          <div className="flex gap-2">
+                            {[...Array(3)].map((_, i) => (
+                              <motion.div key={i} className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center" animate={{ y: [0, -10, 0], scale: [1, 1.2, 1], rotate: [0, 5, -5, 0] }} transition={{ duration: 1.5, repeat: Infinity, delay: i * 0.2, ease: 'easeInOut' }}>
+                                <Video className="w-4 h-4 text-blue-600 dark:text-white" />
+                              </motion.div>
+                            ))}
+                          </div>
+                          <div className="w-48 bg-white/20 rounded-full h-2 overflow-hidden">
+                            <motion.div className="h-full bg-blue-500 rounded-full" initial={{ width: '0%' }} animate={{ width: '80%' }} transition={{ duration: 1.5, repeat: Infinity, repeatType: 'reverse', ease: 'easeInOut' }} />
+                          </div>
+                          <motion.div className="text-blue-700 dark:text-white font-semibold" animate={{ opacity: [0.7, 1, 0.7] }} transition={{ duration: 1.5, repeat: Infinity }}>
+                            Analyzing all videos as one...
+                          </motion.div>
+                          <motion.div className="text-blue-700/80 dark:text-white/80 text-sm" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1 }}>
+                            ✨ Detecting items from all videos
+                          </motion.div>
+                        </motion.div>
+                      </div>
+                    )}
+                    {/* Per-video AI results (unchanged) */}
                     {videoAnalysis[video.url] && !analyzingVideos.has(video.url) && (
                       <motion.div className="mt-3 p-4 bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 rounded-lg border border-purple-200 dark:border-purple-700" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
                         <h4 className="text-sm font-semibold text-purple-700 dark:text-purple-300 mb-3 flex items-center gap-2">🤖 AI Analysis Results</h4>
                         <div className="mb-3">
                           <h5 className="text-xs font-medium text-green-700 dark:text-green-300 mb-2 flex items-center gap-1">✅ Detected Items ({videoAnalysis[video.url].items.length})</h5>
-                          <div className="flex flex-wrap gap-1">
+                          <ul className="list-disc pl-6 text-gray-800 dark:text-gray-200">
                             {(videoAnalysis[video.url].items || []).map((item, itemIndex) => (
-                              <span key={itemIndex} className="px-2 py-1 bg-green-100 dark:bg-green-800 text-green-700 dark:text-white text-xs rounded-full">{item}</span>
+                              <li key={itemIndex}>{item}</li>
                             ))}
-                          </div>
+                          </ul>
                         </div>
-                        {/* Save to Room button after analysis */}
                         {/* Remove per-video Save to Room button */}
                       </motion.div>
                     )}
                   </div>
                 ))}
               </div>
+              {/* After the grid of new videos, show a single Save to Room button if all have been analyzed */}
+              {[...recordedVideos, ...uploadedVideos].length > 0 &&
+                ([...recordedVideos, ...uploadedVideos].every(v => videoAnalysis[v.url]) && !analyzingVideos.size && batchAnalysisResult.length === 0) && (
+                  <div className="flex justify-end mt-4">
+                    <Button
+                      className="bg-gradient-to-r from-green-600 to-blue-600 text-white font-semibold py-2 px-6 rounded-xl shadow hover:scale-105 transition-all hover:cursor-pointer"
+                      onClick={saveVideosToRoom}
+                      disabled={isProcessing}
+                    >
+                      {isProcessing ? 'Saving...' : 'Save to Room'}
+                    </Button>
+                  </div>
+                )
+              }
               {isProcessing && (
                 <div className="w-full bg-gradient-to-r from-green-500 to-blue-500 rounded-xl p-6 text-center mt-6 w-full">
                   <motion.div className="flex flex-col items-center gap-4" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
@@ -598,9 +816,36 @@ const RoomVideoManagerPage = () => {
           <div className="sticky top-0 z-30 bg-white dark:bg-gray-900 py-2 shadow-sm">
             <h2 className="text-xl ms-2 w-full font-bold text-gray-900 dark:text-white mb-2">Existing Videos</h2>
           </div>
-          {room.videos && room.videos.length > 0 ? (
+          {/* Show batch analyses first */}
+          {batchAnalyses.length > 0 && (
             <div className="flex p-4 flex-col gap-4">
-              {room.videos.map((videoUrl, idx) => {
+              {batchAnalyses.map((batch, idx) => (
+                <div
+                  key={batch.id}
+                  className="relative flex flex-col gap-2 rounded-xl border border-gray-200 dark:border-gray-700 cursor-pointer bg-white/90 dark:bg-gray-900/80 shadow group hover:border-blue-400 dark:hover:border-blue-300 transition-all p-4"
+                  onClick={() => {
+                    setSelectedModalVideo(batch.videoUrls[0]);
+                    setSelectedModalVideoAnalysis({ items: batch.items, missingItems: [], type: 'batch', videoUrls: batch.videoUrls } as any);
+                    setModalLoading(false);
+                  }}
+                >
+                  {/* Tag */}
+                  <span className="absolute top-2 left-2 px-2 py-1 bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200 text-xs rounded-full font-bold">Batch</span>
+                  {/* Video previews */}
+                  <div className="flex gap-2 mb-2">
+                    {batch.videoUrls.map((url: string, i: number) => (
+                      <video key={i} src={url} className="w-16 h-12 object-cover rounded border border-gray-100 dark:border-gray-800" />
+                    ))}
+                  </div>
+                  <span className="text-base text-gray-900 dark:text-white font-bold w-full text-left group-hover:text-blue-700 dark:group-hover:text-blue-300 transition">Batch Analysis {idx + 1}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {/* Show individual analyses */}
+          {room.videos && room.videos.length > 0 && (
+            <div className="flex p-4 flex-col gap-4">
+              {room.videos.filter(url => !url.startsWith('batch:')).map((videoUrl, idx) => {
                 const analysis = roomAnalyses[videoUrl];
                 let dateString = '';
                 if (analysis && analysis.createdAt) {
@@ -613,32 +858,23 @@ const RoomVideoManagerPage = () => {
                   <div
                     key={idx}
                     className="relative flex flex-col gap-2 rounded-xl border border-gray-200 dark:border-gray-700 cursor-pointer bg-white/90 dark:bg-gray-900/80 shadow group hover:border-blue-400 dark:hover:border-blue-300 transition-all p-4"
-                    onClick={async (e) => {
+                    onClick={async e => {
                       if ((e.target as HTMLElement).closest('.delete-btn')) return;
                       setSelectedModalVideo(videoUrl);
                       setModalLoading(true);
-                      let analysis = null;
-                      if (room && room.id) {
+                      let analysis = roomAnalyses[videoUrl];
+                      if (!analysis && room && room.id) {
                         try {
                           const analyses = await getCompletedAnalysesByRoomId(room.id);
                           analysis = analyses.find(a => a.cloudinaryUrl === videoUrl || a.videoUrl === videoUrl) || null;
-                        } catch (e) { /* ignore */ }
+                        } catch { }
                       }
-                      setSelectedModalVideoAnalysis(analysis);
+                      setSelectedModalVideoAnalysis(analysis ? { ...analysis, type: 'individual', videoUrls: [videoUrl] } as any : null);
                       setModalLoading(false);
                     }}
                   >
-                    {/* Delete button */}
-                    <button
-                      className="delete-btn absolute top-2 right-2 p-2 rounded-md bg-red-100 text-red-600 hover:bg-red-200 hover:text-red-800 shadow transition z-20"
-                      title="Delete video"
-                      onClick={e => { e.stopPropagation(); setVideoToDelete(videoUrl); }}
-                      disabled={isDeleting}
-                    >
-                      <Trash2 className="w-5 h-5" />
-                    </button>
-                    {/* Name at top */}
-                    <span className="text-base text-gray-900 dark:text-white font-bold w-full text-left group-hover:text-blue-700 dark:group-hover:text-blue-300 transition">{`Video ${idx + 1}`}</span>
+                    {/* Tag */}
+                    <span className="absolute top-2 left-2 px-2 py-1 bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-200 text-xs rounded-full font-bold">Individual</span>
                     {/* Video preview */}
                     <video src={videoUrl} className="w-full h-32 object-cover rounded-lg border border-gray-100 dark:border-gray-800" />
                     {/* Date below video (if available) */}
@@ -649,8 +885,6 @@ const RoomVideoManagerPage = () => {
                 );
               })}
             </div>
-          ) : (
-            <div className="text-gray-500 dark:text-gray-400">No existing videos.</div>
           )}
         </div>
         {toast && (
@@ -674,9 +908,24 @@ const RoomVideoManagerPage = () => {
         )}
       </div >
       {/* Modal for video preview & AI results */}
-      {
-        selectedModalVideo && (
-          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-2 md:p-0 bg-black/60" onClick={() => { setSelectedModalVideo(null); setSelectedModalVideoAnalysis(null); }}>
+      {selectedModalVideo && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-2 md:p-0 bg-black/60" onClick={() => { setSelectedModalVideo(null); setSelectedModalVideoAnalysis(null); }}>
+          {selectedModalVideoAnalysis && (selectedModalVideoAnalysis as any).type === 'batch' ? (
+            <div className="bg-white dark:bg-gray-900 rounded-xl shadow-xl p-6 max-w-md w-full relative max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+              <button className="absolute top-2 right-2 text-gray-500 hover:text-gray-900 dark:hover:text-white text-2xl" onClick={() => { setSelectedModalVideo(null); setSelectedModalVideoAnalysis(null); }}>&times;</button>
+              <div className="flex flex-col gap-4 mb-4">
+                {(selectedModalVideoAnalysis as any).videoUrls.map((url: string, i: number) => (
+                  <video key={i} src={url} controls className="w-full h-48 rounded border border-gray-200 dark:border-gray-800" style={{ objectFit: 'cover' }} />
+                ))}
+              </div>
+              <h3 className="text-lg font-bold mb-2 text-gray-900 dark:text-white">Batch AI Analysis Results</h3>
+              <ul className="list-disc pl-6 text-gray-800 dark:text-gray-200">
+                {(selectedModalVideoAnalysis as any).items.map((item: string, idx: number) => (
+                  <li key={idx}>{item}</li>
+                ))}
+              </ul>
+            </div>
+          ) : (
             <div className="bg-white dark:bg-gray-900 rounded-xl shadow-xl p-6 max-w-md w-full relative max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
               <button className="absolute top-2 right-2 text-gray-500 hover:text-gray-900 dark:hover:text-white text-2xl" onClick={() => { setSelectedModalVideo(null); setSelectedModalVideoAnalysis(null); }}>&times;</button>
               <video src={selectedModalVideo} controls className="w-full h-48 rounded-lg mb-4" />
@@ -693,65 +942,61 @@ const RoomVideoManagerPage = () => {
                 <div className="text-gray-500 dark:text-gray-400">No AI results found for this video.</div>
               )}
             </div>
+          )}
+        </div>
+      )}
+      {showSuccessModal && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60" onClick={() => setShowSuccessModal(false)}>
+          <div className="bg-white dark:bg-gray-900 rounded-xl shadow-xl p-6 max-w-sm w-full relative" onClick={e => e.stopPropagation()}>
+            <button className="absolute top-2 right-2 text-gray-500 hover:text-gray-900 dark:hover:text-white text-2xl" onClick={() => setShowSuccessModal(false)}>&times;</button>
+            <div className="flex flex-col items-center">
+              <div className="text-green-600 dark:text-green-400 text-4xl mb-2">✔️</div>
+              <h3 className="text-lg font-bold mb-2 text-gray-900 dark:text-white text-center">Video and AI results saved successfully!</h3>
+              <p className="text-gray-700 dark:text-gray-300 text-center">Your video and its analysis are now available in the room's video list.</p>
+              <Button className="mt-4" onClick={() => setShowSuccessModal(false)}>Close</Button>
+            </div>
           </div>
-        )
-      }
-      {
-        showSuccessModal && (
-          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60" onClick={() => setShowSuccessModal(false)}>
-            <div className="bg-white dark:bg-gray-900 rounded-xl shadow-xl p-6 max-w-sm w-full relative" onClick={e => e.stopPropagation()}>
-              <button className="absolute top-2 right-2 text-gray-500 hover:text-gray-900 dark:hover:text-white text-2xl" onClick={() => setShowSuccessModal(false)}>&times;</button>
-              <div className="flex flex-col items-center">
-                <div className="text-green-600 dark:text-green-400 text-4xl mb-2">✔️</div>
-                <h3 className="text-lg font-bold mb-2 text-gray-900 dark:text-white text-center">Video and AI results saved successfully!</h3>
-                <p className="text-gray-700 dark:text-gray-300 text-center">Your video and its analysis are now available in the room's video list.</p>
-                <Button className="mt-4" onClick={() => setShowSuccessModal(false)}>Close</Button>
+        </div>
+      )}
+      {videoToDelete && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60" onClick={() => setVideoToDelete(null)}>
+          <div className="bg-white dark:bg-gray-900 rounded-xl shadow-xl p-6 max-w-sm w-full relative" onClick={e => e.stopPropagation()}>
+            <button className="absolute top-2 right-2 text-gray-500 hover:text-gray-900 dark:hover:text-white text-2xl" onClick={() => setVideoToDelete(null)}>&times;</button>
+            <div className="flex flex-col items-center">
+              <Trash2 className="w-10 h-10 text-red-500 mb-2" />
+              <h3 className="text-lg font-bold mb-2 text-gray-900 dark:text-white text-center">Delete this video?</h3>
+              <p className="text-gray-700 dark:text-gray-300 text-center mb-4">Are you sure you want to delete this video and its AI results? This action cannot be undone.</p>
+              <div className="flex gap-4">
+                <Button variant="outline" onClick={() => setVideoToDelete(null)} disabled={isDeleting}>Cancel</Button>
+                <Button
+                  className="bg-red-600 hover:bg-red-700 text-white"
+                  onClick={async () => {
+                    setIsDeleting(true);
+                    // Remove from room
+                    const newVideos = (room.videos || []).filter(url => url !== videoToDelete);
+                    await updateRoomVideos(room.id, newVideos);
+                    setRoom(prev => prev ? { ...prev, videos: newVideos } : null);
+                    // Remove analysis from Firebase
+                    try {
+                      const analyses = await getCompletedAnalysesByRoomId(room.id);
+                      const analysis = analyses.find(a => a.cloudinaryUrl === videoToDelete || a.videoUrl === videoToDelete);
+                      if (analysis) {
+                        // You may need to import and use deleteVideoAnalysis from firebaseService
+                        // await deleteVideoAnalysis(analysis.id);
+                      }
+                    } catch { }
+                    setIsDeleting(false);
+                    setVideoToDelete(null);
+                  }}
+                  disabled={isDeleting}
+                >
+                  {isDeleting ? 'Deleting...' : 'Delete'}
+                </Button>
               </div>
             </div>
           </div>
-        )
-      }
-      {
-        videoToDelete && (
-          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60" onClick={() => setVideoToDelete(null)}>
-            <div className="bg-white dark:bg-gray-900 rounded-xl shadow-xl p-6 max-w-sm w-full relative" onClick={e => e.stopPropagation()}>
-              <button className="absolute top-2 right-2 text-gray-500 hover:text-gray-900 dark:hover:text-white text-2xl" onClick={() => setVideoToDelete(null)}>&times;</button>
-              <div className="flex flex-col items-center">
-                <Trash2 className="w-10 h-10 text-red-500 mb-2" />
-                <h3 className="text-lg font-bold mb-2 text-gray-900 dark:text-white text-center">Delete this video?</h3>
-                <p className="text-gray-700 dark:text-gray-300 text-center mb-4">Are you sure you want to delete this video and its AI results? This action cannot be undone.</p>
-                <div className="flex gap-4">
-                  <Button variant="outline" onClick={() => setVideoToDelete(null)} disabled={isDeleting}>Cancel</Button>
-                  <Button
-                    className="bg-red-600 hover:bg-red-700 text-white"
-                    onClick={async () => {
-                      setIsDeleting(true);
-                      // Remove from room
-                      const newVideos = (room.videos || []).filter(url => url !== videoToDelete);
-                      await updateRoomVideos(room.id, newVideos);
-                      setRoom(prev => prev ? { ...prev, videos: newVideos } : null);
-                      // Remove analysis from Firebase
-                      try {
-                        const analyses = await getCompletedAnalysesByRoomId(room.id);
-                        const analysis = analyses.find(a => a.cloudinaryUrl === videoToDelete || a.videoUrl === videoToDelete);
-                        if (analysis) {
-                          // You may need to import and use deleteVideoAnalysis from firebaseService
-                          // await deleteVideoAnalysis(analysis.id);
-                        }
-                      } catch { }
-                      setIsDeleting(false);
-                      setVideoToDelete(null);
-                    }}
-                    disabled={isDeleting}
-                  >
-                    {isDeleting ? 'Deleting...' : 'Delete'}
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )
-      }
+        </div>
+      )}
     </>
   );
 };

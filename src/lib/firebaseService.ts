@@ -260,6 +260,44 @@ export const getCompletedAnalysesByRoomId = async (roomId: string): Promise<Vide
   }
 };
 
+// Batch Analysis operations
+export const createBatchVideoAnalysis = async (
+  roomId: string,
+  batchEntry: { videoUrls: string[]; items: string[]; type: string; createdAt: Date }
+): Promise<string> => {
+  try {
+    const docRef = await addDoc(collection(db, 'batchAnalyses'), {
+      roomId,
+      videoUrls: batchEntry.videoUrls,
+      items: batchEntry.items,
+      type: batchEntry.type,
+      createdAt: serverTimestamp(),
+    });
+    return docRef.id;
+  } catch (error) {
+    console.error('Error creating batch video analysis:', error);
+    throw error;
+  }
+};
+
+export const getBatchAnalysesByRoomId = async (roomId: string): Promise<any[]> => {
+  try {
+    const q = query(
+      collection(db, 'batchAnalyses'),
+      where('roomId', '==', roomId)
+    );
+    const querySnapshot = await getDocs(q);
+    const batches: any[] = [];
+    querySnapshot.forEach((doc: QueryDocumentSnapshot<DocumentData>) => {
+      batches.push({ id: doc.id, ...doc.data() });
+    });
+    return batches;
+  } catch (error) {
+    console.error('Error getting batch analyses:', error);
+    throw error;
+  }
+};
+
 // Home operations
 export const createHome = async (homeData: CreateHomeData): Promise<string> => {
   try {
