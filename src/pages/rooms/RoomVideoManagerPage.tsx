@@ -8,7 +8,8 @@ import {
   Square,
   Trash2,
   Camera,
-  Save
+  Save,
+  PlayCircle
 } from 'lucide-react';
 import {
   getHomeById,
@@ -22,6 +23,7 @@ import {
 } from '../../lib/firebaseService';
 import type { VideoAnalysis } from '../../lib/firebaseService';
 import { extractFramesFromVideo } from '../../lib/utils';
+import { formatDistanceToNow } from 'date-fns'; // Make sure 'date-fns' is installed: npm install date-fns
 
 interface Home {
   id: string;
@@ -306,6 +308,23 @@ Provide ONLY the item names and descriptions. Do not include explanations or com
       const lines = analysisResult.split('\n').filter((line: string) => line.trim());
       const items: string[] = [];
       lines.forEach((line: string) => {
+        // Filter out meta/instructional lines and markdown headings
+        const lower = line.toLowerCase();
+        if (
+          lower.includes('here is a list of') ||
+          lower.includes('visible in the frames') ||
+          lower.includes('visible in the video') ||
+          lower.includes('the following items') ||
+          lower.includes('elements present') ||
+          lower.includes('as follows:') ||
+          lower.startsWith('items:') ||
+          lower.startsWith('elements:') ||
+          lower.includes('based on the video frames') ||
+          lower.includes('relevant for a home or room analysis') ||
+          line.trim().match(/^#+\s/) // markdown headings like #, ##, ###, ####
+        ) {
+          return;
+        }
         if (line.includes('-') || line.includes('•') || line.includes('*')) {
           const item = line.replace(/^[-•*]\s*/, '').trim();
           if (item) items.push(item);
@@ -452,6 +471,23 @@ Provide ONLY the item names and descriptions. Do not include explanations or com
       const lines = analysisResult.split('\n').filter((line: string) => line.trim());
       const items: string[] = [];
       lines.forEach((line: string) => {
+        // Filter out meta/instructional lines and markdown headings
+        const lower = line.toLowerCase();
+        if (
+          lower.includes('here is a list of') ||
+          lower.includes('visible in the frames') ||
+          lower.includes('visible in the video') ||
+          lower.includes('the following items') ||
+          lower.includes('elements present') ||
+          lower.includes('as follows:') ||
+          lower.startsWith('items:') ||
+          lower.startsWith('elements:') ||
+          lower.includes('based on the video frames') ||
+          lower.includes('relevant for a home or room analysis') ||
+          line.trim().match(/^#+\s/) // markdown headings like #, ##, ###, ####
+        ) {
+          return;
+        }
         if (line.includes('-') || line.includes('•') || line.includes('*')) {
           const item = line.replace(/^[-•*]\s*/, '').trim();
           if (item) items.push(item);
@@ -582,12 +618,7 @@ Provide ONLY the item names and descriptions. Do not include explanations or com
                 )}
               </div>
               <div className="flex gap-2 mt-2">
-                {isStartingRecording ? (
-                  <div className="bg-gradient-to-r from-red-500 to-red-600 text-white flex items-center gap-2 px-6 py-3 rounded-xl font-semibold shadow-lg">
-                    <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }} className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full" />
-                    <span>Initializing Camera...</span>
-                  </div>
-                ) : isLiveRecording ? (
+                {isLiveRecording ? (
                   <Button onClick={stopLiveRecording} className="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white flex items-center gap-2 px-6 py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 hover:cursor-pointer animate-pulse">
                     <Square className="w-5 h-5" />
                     Stop Recording
@@ -801,7 +832,7 @@ Provide ONLY the item names and descriptions. Do not include explanations or com
         {/* Restore the right column layout for existing videos to the previous version */}
         <div className="w-full md:w-1/4 flex flex-col gap-4 overflow-y-auto max-h-screen border-t md:border-t-0 md:border-l border-gray-200 dark:border-gray-700 shadow-lg z-10">
           <div className="sticky top-0 z-30 bg-white dark:bg-gray-900 py-2 shadow-sm">
-            <h2 className="text-xl ms-2 w-full font-bold text-gray-900 dark:text-white mb-2">Existing Videos</h2>
+            <h2 className="text-xl ms-2 w-full font-bold text-gray-900 dark:text-white mb-2">Room Video Library</h2>
           </div>
           {/* Show batch analyses first */}
           {batchAnalyses.length > 0 && (
@@ -817,20 +848,20 @@ Provide ONLY the item names and descriptions. Do not include explanations or com
                   }}
                 >
                   {/* Tag */}
-                  <span className="absolute top-2 left-2 px-2 py-1 bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200 text-xs rounded-full font-bold">Batch</span>
+                  <span className="absolute top-2 left-2 px-2 py-1 bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200 text-xs rounded-full font-bold">Multi-Video Analysis</span>
                   {/* Video previews */}
                   <div className="flex gap-2 mb-2">
                     {batch.videoUrls.map((url: string, i: number) => (
                       <video key={i} src={url} className="w-16 h-12 object-cover rounded border border-gray-100 dark:border-gray-800" />
                     ))}
                   </div>
-                  <span className="text-base text-gray-900 dark:text-white font-bold w-full text-left group-hover:text-blue-700 dark:group-hover:text-blue-300 transition">Batch Analysis {idx + 1}</span>
+                  <span className="text-base text-gray-900 dark:text-white font-bold w-full text-left group-hover:text-blue-700 dark:group-hover:text-blue-300 transition">Combined Room Analysis {idx + 1}</span>
                 </div>
               ))}
             </div>
           )}
           {/* Show individual analyses */}
-          {room.videos && room.videos.length > 0 && (
+          {room.videos && room.videos.length > 0 ? (
             <div className="flex p-4 flex-col gap-4">
               {room.videos.filter(url => !url.startsWith('batch:')).map((videoUrl, idx) => {
                 const analysis = roomAnalyses[videoUrl];
@@ -838,13 +869,13 @@ Provide ONLY the item names and descriptions. Do not include explanations or com
                 if (analysis && analysis.createdAt) {
                   try {
                     const d = analysis.createdAt.toDate ? analysis.createdAt.toDate() : new Date(analysis.createdAt.seconds ? analysis.createdAt.seconds * 1000 : analysis.createdAt);
-                    dateString = d.toLocaleString();
+                    dateString = 'Added ' + formatDistanceToNow(d, { addSuffix: true });
                   } catch { }
                 }
                 return (
                   <div
                     key={idx}
-                    className="relative flex flex-col gap-2 rounded-xl border border-gray-200 dark:border-gray-700 cursor-pointer bg-white/90 dark:bg-gray-900/80 shadow group hover:border-blue-400 dark:hover:border-blue-300 transition-all p-4"
+                    className="relative flex flex-col gap-2 rounded-xl border border-gray-200 dark:border-gray-700 cursor-pointer bg-white/90 dark:bg-gray-900/80 shadow group hover:shadow-lg hover:scale-[1.02] transition-all duration-200 p-4"
                     onClick={async e => {
                       if ((e.target as HTMLElement).closest('.delete-btn')) return;
                       setSelectedModalVideo(videoUrl);
@@ -860,10 +891,13 @@ Provide ONLY the item names and descriptions. Do not include explanations or com
                       setModalLoading(false);
                     }}
                   >
-                    {/* Tag */}
-                    <span className="absolute top-2 left-2 px-2 py-1 bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-200 text-xs rounded-full font-bold">Individual</span>
-                    {/* Video preview */}
-                    <video src={videoUrl} className="w-full h-32 object-cover rounded-lg border border-gray-100 dark:border-gray-800" />
+                    {/* Add Single Video Analysis tag to each card, with better placement */}
+                    <span className="absolute top-2 left-2 px-2 py-1 bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-200 text-xs rounded-full font-bold z-10">Single Video Analysis</span>
+                    {/* Video preview with play icon overlay */}
+                    <div className="relative w-full h-32">
+                      <video src={videoUrl} className="w-full h-32 object-cover rounded-lg border border-gray-100 dark:border-gray-800" />
+                      <PlayCircle className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 text-white/80 drop-shadow-lg pointer-events-none" />
+                    </div>
                     {/* Date below video (if available) */}
                     {dateString && (
                       <span className="text-xs text-gray-500 dark:text-gray-400 w-full text-left mt-1">{dateString}</span>
@@ -871,6 +905,12 @@ Provide ONLY the item names and descriptions. Do not include explanations or com
                   </div>
                 );
               })}
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center p-8 opacity-70">
+              <PlayCircle className="w-12 h-12 mb-2" />
+              <div className="text-base font-semibold">No videos found</div>
+              <div className="text-xs text-gray-500">Record or upload a video to get started.</div>
             </div>
           )}
         </div>
@@ -896,29 +936,35 @@ Provide ONLY the item names and descriptions. Do not include explanations or com
       </div >
       {/* Modal for video preview & AI results */}
       {selectedModalVideo && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-2 md:p-0 bg-black/60" onClick={() => { setSelectedModalVideo(null); setSelectedModalVideoAnalysis(null); }}>
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-2 md:p-0 bg-black/60 animate-fade-in" onClick={() => { setSelectedModalVideo(null); setSelectedModalVideoAnalysis(null); }}>
           {selectedModalVideoAnalysis && (selectedModalVideoAnalysis as any).type === 'batch' ? (
             <div className="bg-white dark:bg-gray-900 rounded-xl shadow-xl p-6 max-w-md w-full relative max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-              <button className="absolute top-2 right-2 text-gray-500 hover:text-gray-900 dark:hover:text-white text-2xl" onClick={() => { setSelectedModalVideo(null); setSelectedModalVideoAnalysis(null); }}>&times;</button>
+              <button className="absolute top-2 right-2 text-gray-500 hover:text-gray-900 dark:hover:text-white text-3xl md:text-4xl" style={{ lineHeight: 1 }} title="Close" onClick={() => { setSelectedModalVideo(null); setSelectedModalVideoAnalysis(null); }}>&times;</button>
+              {/* Multi-Video Analysis Tag */}
+              <span className="inline-block mb-2 px-3 py-1 bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200 text-xs rounded-full font-bold">Multi-Video Analysis</span>
               <div className="flex flex-col gap-4 mb-4">
                 {(selectedModalVideoAnalysis as any).videoUrls.map((url: string, i: number) => (
                   <video key={i} src={url} controls className="w-full h-48 rounded border border-gray-200 dark:border-gray-800" style={{ objectFit: 'cover' }} />
                 ))}
               </div>
-              <h3 className="text-lg font-bold mb-2 text-gray-900 dark:text-white">Batch AI Analysis Results</h3>
+              <h3 className="text-lg font-bold mb-2 text-gray-900 dark:text-white">Combined Room Analysis Results</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">AI analysis of all videos combined to provide a comprehensive overview of your room.</p>
               <ul className="list-disc pl-6 text-gray-800 dark:text-gray-200">
                 {(selectedModalVideoAnalysis as any).items.map((item: string, idx: number) => (
                   <li key={idx}>{item}</li>
                 ))}
               </ul>
+              {/* Ensure no related videos section is present here */}
             </div>
           ) : (
             <div className="bg-white dark:bg-gray-900 rounded-xl shadow-xl p-6 max-w-md w-full relative max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-              <button className="absolute top-2 right-2 text-gray-500 hover:text-gray-900 dark:hover:text-white text-2xl" onClick={() => { setSelectedModalVideo(null); setSelectedModalVideoAnalysis(null); }}>&times;</button>
+              <button className="absolute top-2 right-2 text-gray-500 hover:text-gray-900 dark:hover:text-white text-3xl md:text-4xl" style={{ lineHeight: 1 }} title="Close" onClick={() => { setSelectedModalVideo(null); setSelectedModalVideoAnalysis(null); }}>&times;</button>
+              {/* Single Video Analysis Tag */}
+              <span className="inline-block mb-2 px-3 py-1 bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-200 text-xs rounded-full font-bold">Single Video Analysis</span>
               <video src={selectedModalVideo} controls className="w-full h-48 rounded-lg mb-4" />
-              <h3 className="text-lg font-bold mb-2 text-gray-900 dark:text-white">AI Analysis Results</h3>
+              <h3 className="text-lg font-bold mb-2 text-gray-900 dark:text-white">Room Analysis Results</h3>
               {modalLoading ? (
-                <div className="text-gray-500 dark:text-gray-400">Loading AI results...</div>
+                <div className="text-gray-500 dark:text-gray-400">Loading analysis results...</div>
               ) : selectedModalVideoAnalysis && selectedModalVideoAnalysis.items && selectedModalVideoAnalysis.items.length > 0 ? (
                 <ul className="list-disc pl-6 text-gray-800 dark:text-gray-200">
                   {selectedModalVideoAnalysis.items.map((item, idx) => (
@@ -926,7 +972,7 @@ Provide ONLY the item names and descriptions. Do not include explanations or com
                   ))}
                 </ul>
               ) : (
-                <div className="text-gray-500 dark:text-gray-400">No AI results found for this video.</div>
+                <div className="text-gray-500 dark:text-gray-400">No items were detected in this video. Try uploading a clearer or more detailed video.</div>
               )}
             </div>
           )}
