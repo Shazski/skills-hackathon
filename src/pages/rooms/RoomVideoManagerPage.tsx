@@ -217,11 +217,11 @@ const RoomVideoManagerPage = () => {
     setVideoProgress(prev => ({ ...prev, [videoUrl]: 5 }));
     try {
       let frameImageUrls: string[] = [];
-      // Start uploading the full video in parallel if not already uploaded
-      if (videoFile && !videoCloudinaryUrls[videoUrl]) {
-        uploadToCloudinary(videoFile).then(url => {
-          setVideoCloudinaryUrls(prev => ({ ...prev, [videoUrl]: url }));
-        });
+      let mainCloudinaryUrl = cloudinaryUrl || videoCloudinaryUrls[videoUrl];
+      // Always await Cloudinary upload for the main video file
+      if (videoFile && !mainCloudinaryUrl) {
+        mainCloudinaryUrl = await uploadToCloudinary(videoFile);
+        setVideoCloudinaryUrls(prev => ({ ...prev, [videoUrl]: mainCloudinaryUrl! }));
       }
       if (videoFile) {
         setVideoProgress(prev => ({ ...prev, [videoUrl]: 20 }));
@@ -233,15 +233,12 @@ const RoomVideoManagerPage = () => {
           setVideoProgress(prev => ({ ...prev, [videoUrl]: 30 + i * 10 }));
         }
       } else {
-        frameImageUrls = [cloudinaryUrl || videoUrl];
+        frameImageUrls = [mainCloudinaryUrl || videoUrl];
         setVideoProgress(prev => ({ ...prev, [videoUrl]: 30 }));
       }
       const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
       if (!apiKey) throw new Error('OpenAI API key is missing.');
       setVideoProgress(prev => ({ ...prev, [videoUrl]: 60 }));
-      // Call your AI API here (pseudo-code):
-      // const analysisData = await callOpenAIVisionAPI(openaiContent, apiKey);
-      // For demo, fake result:
       await new Promise(res => setTimeout(res, 1000));
       setVideoProgress(prev => ({ ...prev, [videoUrl]: 90 }));
       const openaiContent = [
@@ -254,7 +251,6 @@ const RoomVideoManagerPage = () => {
           image_url: { url }
         }))
       ];
-
       const res = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
         headers: {
@@ -266,7 +262,29 @@ const RoomVideoManagerPage = () => {
           messages: [
             {
               role: "system",
-              content: `You are an expert at analyzing video content and identifying objects, items, and elements present in videos. \n\nYour task is to watch the provided video frames and create a comprehensive list of all visible items, objects, furniture, appliances, decorations, and any other notable elements you can identify.\n\nPlease provide your response in the following format:\n- List each item on a separate line\n- Be specific and descriptive\n- Include furniture, electronics, decorations, appliances, etc.\n- Mention the approximate location or context if relevant\n- Focus on items that would be important for real estate or home analysis\n\nFormat your response as a clean list with each item clearly described.`,
+              content: `You are an expert at analyzing video content and identifying objects, items, and elements present in videos.
+
+Your task is to carefully examine the provided video frames and create a comprehensive, detailed list of ALL visible items, objects, furniture, appliances, decorations, and any other notable elements you can identify.
+
+IMPORTANT GUIDELINES:
+- Be thorough and comprehensive - list everything you can see
+- Include furniture (chairs, tables, beds, sofas, etc.)
+- Include appliances (refrigerators, microwaves, TVs, computers, etc.)
+- Include decorations (paintings, plants, rugs, curtains, etc.)
+- Include electronics and devices
+- Include lighting fixtures and lamps
+- Include storage items (shelves, cabinets, drawers, etc.)
+- Include any visible architectural features
+- Be specific about item types and materials when visible
+- Mention colors and patterns if they help identify items
+- Focus on items relevant for home/room analysis
+
+Format your response as a clean list with each item on a separate line:
+- Specific item name with details
+- Another item with details
+- Continue listing all visible items
+
+Provide ONLY the item names and descriptions. Do not include explanations or commentary.`,
             },
             {
               role: "user",
@@ -276,7 +294,6 @@ const RoomVideoManagerPage = () => {
           max_tokens: 1000,
         }),
       });
-
       if (!res.ok) {
         const errorText = await res.text();
         throw new Error(`OpenAI API error: ${res.status} - ${errorText}`);
@@ -304,12 +321,6 @@ const RoomVideoManagerPage = () => {
       setVideoProgress(prev => ({ ...prev, [videoUrl]: 100 }));
       setTimeout(() => setVideoProgress(prev => { const { [videoUrl]: _, ...rest } = prev; return rest; }), 1000);
       if (room) {
-        // Wait for Cloudinary upload to finish if not already done
-        let mainCloudinaryUrl = cloudinaryUrl || videoCloudinaryUrls[videoUrl];
-        if (!mainCloudinaryUrl && videoFile) {
-          mainCloudinaryUrl = await uploadToCloudinary(videoFile);
-          setVideoCloudinaryUrls(prev => ({ ...prev, [videoUrl]: mainCloudinaryUrl! }));
-        }
         if (mainCloudinaryUrl) {
           const firebaseAnalysisId = await createVideoAnalysis(room.id, videoUrl, mainCloudinaryUrl);
           await updateVideoAnalysisResults(firebaseAnalysisId, analysisData.items, [], mainCloudinaryUrl);
@@ -480,7 +491,6 @@ const RoomVideoManagerPage = () => {
         }
       }));
       const cloudinaryUrls = allVideos.map(video => videoCloudinaryUrls[video.url]);
-      // Save a single batch entry to Firebase
       const batchEntry = {
         videoUrls: cloudinaryUrls,
         items: batchAnalysisResult,
@@ -492,7 +502,6 @@ const RoomVideoManagerPage = () => {
       await updateRoomVideos(room.id, [...(room.videos || []), batchKey]);
       setRoom(prev => prev ? { ...prev, videos: [...(prev.videos || []), batchKey] } : null);
 
-      // Refresh batch analyses to show the new one in the right column
       try {
         const updatedBatches = await getBatchAnalysesByRoomId(room.id);
         setBatchAnalyses(updatedBatches);
@@ -652,7 +661,7 @@ const RoomVideoManagerPage = () => {
               {/* Analyze Buttons Row */}
               <div className="flex flex-row gap-3 mb-3">
                 {/* Per-video Analyze Button */}
-                {([...recordedVideos, ...uploadedVideos].some(v => !videoAnalysis[v.url]) && !analyzingVideos.size && !isBatchAnalyzing && batchAnalysisResult.length === 0) && (
+                {([...recordedVideos, ...uploadedVideos].some(v => !videoAnalysis[v.url]) && analyzingVideos.size === 0 && !isBatchAnalyzing && batchAnalysisResult.length === 0) && (
                   <Button
                     className="bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold py-2 px-6 rounded-xl shadow hover:scale-105 transition-all hover:cursor-pointer"
                     onClick={async () => {
@@ -675,7 +684,7 @@ const RoomVideoManagerPage = () => {
                   </Button>
                 )}
                 {/* Analyze All Videos as One Button */}
-                {([...recordedVideos, ...uploadedVideos].length > 1 && !isBatchAnalyzing && batchAnalysisResult.length === 0) && (
+                {([...recordedVideos, ...uploadedVideos].length > 1 && !isBatchAnalyzing && batchAnalysisResult.length === 0 && analyzingVideos.size === 0) && (
                   <Button
                     className="bg-gradient-to-r from-purple-600 to-blue-600 text-white font-semibold py-2 px-6 rounded-xl shadow hover:scale-105 transition-all hover:cursor-pointer"
                     onClick={analyzeAllVideosAsBatch}
@@ -785,28 +794,6 @@ const RoomVideoManagerPage = () => {
                   </div>
                 )
               }
-              {isProcessing && (
-                <div className="w-full bg-gradient-to-r from-green-500 to-blue-500 rounded-xl p-6 text-center mt-6 w-full">
-                  <motion.div className="flex flex-col items-center gap-4" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-                    {/* <div className="flex gap-2">
-                      {[...Array(3)].map((_, i) => (
-                        <motion.div key={i} className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center" animate={{ y: [0, -10, 0], scale: [1, 1.2, 1], rotate: [0, 5, -5, 0] }} transition={{ duration: 1.5, repeat: Infinity, delay: i * 0.2, ease: 'easeInOut' }}>
-                          <Video className="w-4 h-4 text-white" />
-                        </motion.div>
-                      ))}
-                    </div> */}
-                    <div className="w-full bg-white/20 rounded-full h-2 overflow-hidden">
-                      <motion.div className="h-full bg-white rounded-full" initial={{ width: '0%' }} animate={{ width: `${processingProgress}%` }} transition={{ duration: 0.5, ease: 'easeInOut' }} />
-                    </div>
-                    <motion.div className="text-white font-semibold" animate={{ opacity: [0.7, 1, 0.7] }} transition={{ duration: 1.5, repeat: Infinity }}>
-                      Saving and analyzing videos...
-                    </motion.div>
-                    <motion.div className="text-white/80 text-sm" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1 }}>
-                      ✨ Processing videos and detecting items
-                    </motion.div>
-                  </motion.div>
-                </div>
-              )}
             </div>
           )}
         </div>
