@@ -11,7 +11,12 @@ import {
   Save,
   PlayCircle,
   Pause,
-  Play
+  Play,
+  Volume2,
+  VolumeX,
+  Maximize,
+  SkipBack,
+  SkipForward
 } from 'lucide-react';
 import {
   getHomeById,
@@ -77,6 +82,7 @@ const RoomVideoManagerPage = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+  const videoRefs = useRef<{ [key: string]: HTMLVideoElement | null }>({});
   const [selectedVideo, setSelectedVideo] = useState<string | null>(null);
   const [videoProgress, setVideoProgress] = useState<{ [url: string]: number }>({});
   const [selectedVideoForAnalysis, setSelectedVideoForAnalysis] = useState<string | null>(null);
@@ -97,6 +103,12 @@ const RoomVideoManagerPage = () => {
   const [isBatchAnalyzing, setIsBatchAnalyzing] = useState(false);
   // Add state for batch analyses
   const [batchAnalyses, setBatchAnalyses] = useState<any[]>([]);
+  const [isVideoPlaying, setIsVideoPlaying] = useState<boolean>(false);
+  const [isVideoMuted, setIsVideoMuted] = useState<boolean>(true);
+  const [videoCurrentTime, setVideoCurrentTime] = useState<number>(0);
+  const [videoDuration, setVideoDuration] = useState<number>(0);
+  const [showVideoControls, setShowVideoControls] = useState<boolean>(false);
+  const [playingVideo, setPlayingVideo] = useState<string | null>(null);
 
   // Combine all detected items from analyzed videos (remove duplicates)
   const combinedAnalysisResult = useMemo(() => {
@@ -204,6 +216,71 @@ const RoomVideoManagerPage = () => {
       mediaRecorderRef.current.resume();
       setIsPaused(false);
     }
+  };
+
+  // Video player functions
+  const toggleVideoPlay = () => {
+    if (videoRef.current) {
+      if (isVideoPlaying) {
+        videoRef.current.pause();
+      } else {
+        videoRef.current.play();
+      }
+      setIsVideoPlaying(!isVideoPlaying);
+    }
+  };
+
+  const toggleVideoMute = () => {
+    if (videoRef.current) {
+      videoRef.current.muted = !isVideoMuted;
+      setIsVideoMuted(!isVideoMuted);
+    }
+  };
+
+  const handleVideoTimeUpdate = () => {
+    if (videoRef.current) {
+      setVideoCurrentTime(videoRef.current.currentTime);
+    }
+  };
+
+  const handleVideoLoadedMetadata = () => {
+    if (videoRef.current) {
+      setVideoDuration(videoRef.current.duration);
+    }
+  };
+
+  const handleVideoSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const time = parseFloat(e.target.value);
+    if (videoRef.current) {
+      videoRef.current.currentTime = time;
+      setVideoCurrentTime(time);
+    }
+  };
+
+  const skipVideo = (seconds: number) => {
+    if (videoRef.current) {
+      videoRef.current.currentTime += seconds;
+      setVideoCurrentTime(videoRef.current.currentTime);
+    }
+  };
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const playVideo = (videoUrl: string) => {
+    setPlayingVideo(videoUrl);
+    // Play the video immediately using the ref
+    const videoElement = videoRefs.current[videoUrl];
+    if (videoElement) {
+      videoElement.play().catch(err => console.log('Auto-play prevented:', err));
+    }
+  };
+
+  const stopVideo = () => {
+    setPlayingVideo(null);
   };
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -601,13 +678,114 @@ Provide ONLY the item names and descriptions. Do not include explanations or com
             </h3>
             <div className="bg-gradient-to-br from-blue-100/60 via-white/80 to-purple-100/60 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 rounded-3xl p-4 md:p-6 mb-2 border border-blue-200 dark:border-blue-700 shadow-2xl relative overflow-hidden">
               <div className="relative flex flex-col items-center">
-                <div className={`w-full h-52 md:h-64 rounded-2xl mb-3 shadow-inner border-4 transition-all duration-300 ${isLiveRecording ? 'border-red-500' : 'border-gray-200 dark:border-gray-700'}`}>
-                  <video ref={videoRef} autoPlay muted className="w-full h-full object-cover rounded-2xl" />
+                <div className={`w-full h-72 md:h-80 lg:h-96 rounded-2xl mb-3 shadow-inner border-4 transition-all duration-300 relative overflow-hidden ${isLiveRecording ? 'border-red-500' : 'border-gray-200 dark:border-gray-700'}`}>
+                  <video
+                    ref={videoRef}
+                    autoPlay
+                    muted
+                    className="w-full h-full object-cover rounded-2xl"
+                    onTimeUpdate={handleVideoTimeUpdate}
+                    onLoadedMetadata={handleVideoLoadedMetadata}
+                    onPlay={() => setIsVideoPlaying(true)}
+                    onPause={() => setIsVideoPlaying(false)}
+                    onMouseEnter={() => setShowVideoControls(true)}
+                    onMouseLeave={() => setShowVideoControls(false)}
+                  />
+
+                  {/* Live Recording Indicator */}
                   {isLiveRecording && (
-                    <span className={`absolute top-3 left-3 flex items-center gap-2 px-3 py-1 text-white text-xs font-bold rounded-full shadow-lg z-10 ${isPaused ? 'bg-yellow-600' : 'bg-red-600 animate-pulse'}`}>
+                    <span className={`absolute top-3 left-3 flex items-center gap-2 px-3 py-1 text-white text-xs font-bold rounded-full shadow-lg z-20 ${isPaused ? 'bg-yellow-600' : 'bg-red-600 animate-pulse'}`}>
                       <span className={`w-2 h-2 bg-white rounded-full ${isPaused ? '' : 'animate-ping'}`} />
                       {isPaused ? 'PAUSED' : 'LIVE'}
                     </span>
+                  )}
+
+                  {/* Custom Video Controls Overlay */}
+                  {!isLiveRecording && (
+                    <div
+                      className={`absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent transition-opacity duration-300 ${showVideoControls ? 'opacity-100' : 'opacity-0'}`}
+                      onMouseEnter={() => setShowVideoControls(true)}
+                      onMouseLeave={() => setShowVideoControls(false)}
+                    >
+                      {/* Center Play/Pause Button */}
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <button
+                          onClick={toggleVideoPlay}
+                          className="bg-white/20 backdrop-blur-sm rounded-full p-4 hover:bg-white/30 transition-all duration-200 hover:scale-110"
+                        >
+                          {isVideoPlaying ? (
+                            <Pause className="w-8 h-8 text-white" />
+                          ) : (
+                            <Play className="w-8 h-8 text-white ml-1" />
+                          )}
+                        </button>
+                      </div>
+
+                      {/* Bottom Controls Bar */}
+                      <div className="absolute bottom-0 left-0 right-0 p-4">
+                        {/* Progress Bar */}
+                        <div className="mb-3">
+                          <input
+                            type="range"
+                            min="0"
+                            max={videoDuration || 0}
+                            value={videoCurrentTime}
+                            onChange={handleVideoSeek}
+                            className="w-full h-2 bg-white/30 rounded-lg appearance-none cursor-pointer slider"
+                            style={{
+                              background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${(videoCurrentTime / (videoDuration || 1)) * 100}%, rgba(255,255,255,0.3) ${(videoCurrentTime / (videoDuration || 1)) * 100}%, rgba(255,255,255,0.3) 100%)`
+                            }}
+                          />
+                        </div>
+
+                        {/* Control Buttons */}
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <button
+                              onClick={toggleVideoPlay}
+                              className="text-white hover:text-blue-300 transition-colors"
+                            >
+                              {isVideoPlaying ? (
+                                <Pause className="w-5 h-5" />
+                              ) : (
+                                <Play className="w-5 h-5" />
+                              )}
+                            </button>
+
+                            <button
+                              onClick={() => skipVideo(-10)}
+                              className="text-white hover:text-blue-300 transition-colors"
+                            >
+                              <SkipBack className="w-5 h-5" />
+                            </button>
+
+                            <button
+                              onClick={() => skipVideo(10)}
+                              className="text-white hover:text-blue-300 transition-colors"
+                            >
+                              <SkipForward className="w-5 h-5" />
+                            </button>
+
+                            <button
+                              onClick={toggleVideoMute}
+                              className="text-white hover:text-blue-300 transition-colors"
+                            >
+                              {isVideoMuted ? (
+                                <VolumeX className="w-5 h-5" />
+                              ) : (
+                                <Volume2 className="w-5 h-5" />
+                              )}
+                            </button>
+                          </div>
+
+                          <div className="flex items-center gap-2 text-white text-sm">
+                            <span>{formatTime(videoCurrentTime)}</span>
+                            <span>/</span>
+                            <span>{formatTime(videoDuration)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   )}
                 </div>
                 {!isLiveRecording && !videoRef.current?.srcObject && (
@@ -771,7 +949,29 @@ Provide ONLY the item names and descriptions. Do not include explanations or com
                     >
                       <Trash2 className="w-5 h-5" />
                     </button>
-                    <video src={video.url} controls className="w-full h-32 bg-gray-200 dark:bg-gray-700 rounded-lg" />
+                    <div className="relative w-full h-32 bg-gray-200 dark:bg-gray-700 rounded-lg overflow-hidden group">
+                      <video
+                        ref={(el) => { videoRefs.current[video.url] = el; }}
+                        src={video.url}
+                        className="w-full h-full object-cover"
+                        controls={playingVideo === video.url}
+                        onTimeUpdate={(e) => {
+                          const target = e.target as HTMLVideoElement;
+                          if (target.currentTime > 0) {
+                            target.style.opacity = '1';
+                          }
+                        }}
+                        onEnded={() => stopVideo()}
+                      />
+                      {playingVideo !== video.url && (
+                        <div
+                          className="absolute inset-0 bg-black/20 group-hover:bg-black/40 transition-all duration-200 flex items-center justify-center cursor-pointer"
+                          onClick={() => playVideo(video.url)}
+                        >
+                          <PlayCircle className="w-8 h-8 text-white/80 drop-shadow-lg" />
+                        </div>
+                      )}
+                    </div>
                     <div className="mt-2 flex flex-col">
                       <span className="text-sm font-semibold text-gray-900 dark:text-white truncate">{video.file?.name || `Video ${index + 1}`}</span>
                       <span className="text-xs text-gray-500 dark:text-gray-400">{video.file ? new Date(video.file.lastModified).toLocaleString() : ''}</span>
@@ -926,9 +1126,25 @@ Provide ONLY the item names and descriptions. Do not include explanations or com
                     {/* Add Single Video Analysis tag to each card, with better placement */}
                     <span className="absolute top-2 left-2 px-2 py-1 bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-200 text-xs rounded-full font-bold z-10">Single Video Analysis</span>
                     {/* Video preview with play icon overlay */}
-                    <div className="relative w-full h-32">
-                      <video src={videoUrl} className="w-full h-32 object-cover rounded-lg border border-gray-100 dark:border-gray-800" />
-                      <PlayCircle className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 text-white/80 drop-shadow-lg pointer-events-none" />
+                    <div className="relative w-full h-32 rounded-lg border border-gray-100 dark:border-gray-800 overflow-hidden group">
+                      <video
+                        ref={(el) => { videoRefs.current[videoUrl] = el; }}
+                        src={videoUrl}
+                        className="w-full h-32 object-cover"
+                        controls={playingVideo === videoUrl}
+                        onTimeUpdate={(e) => {
+                          const target = e.target as HTMLVideoElement;
+                          if (target.currentTime > 0) {
+                            target.style.opacity = '1';
+                          }
+                        }}
+                        onEnded={() => stopVideo()}
+                      />
+                      {playingVideo !== videoUrl && (
+                        <div className="absolute inset-0 bg-black/20 group-hover:bg-black/40 transition-all duration-200 flex items-center justify-center">
+                          <PlayCircle className="w-8 h-8 text-white/80 drop-shadow-lg" />
+                        </div>
+                      )}
                     </div>
                     {/* Date below video (if available) */}
                     {dateString && (
@@ -976,7 +1192,13 @@ Provide ONLY the item names and descriptions. Do not include explanations or com
               <span className="inline-block mb-2 px-3 py-1 bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200 text-xs rounded-full font-bold">Multi-Video Analysis</span>
               <div className="flex flex-col gap-4 mb-4">
                 {(selectedModalVideoAnalysis as any).videoUrls.map((url: string, i: number) => (
-                  <video key={i} src={url} controls className="w-full h-48 rounded border border-gray-200 dark:border-gray-800" style={{ objectFit: 'cover' }} />
+                  <div key={i} className="relative w-full h-48 rounded border border-gray-200 dark:border-gray-800 overflow-hidden bg-gray-900">
+                    <video
+                      src={url}
+                      controls
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
                 ))}
               </div>
               <h3 className="text-lg font-bold mb-2 text-gray-900 dark:text-white">Combined Room Analysis Results</h3>
@@ -993,7 +1215,13 @@ Provide ONLY the item names and descriptions. Do not include explanations or com
               <button className="absolute top-2 right-2 text-gray-500 hover:text-gray-900 dark:hover:text-white text-3xl md:text-4xl" style={{ lineHeight: 1 }} title="Close" onClick={() => { setSelectedModalVideo(null); setSelectedModalVideoAnalysis(null); }}>&times;</button>
               {/* Single Video Analysis Tag */}
               <span className="inline-block mb-2 px-3 py-1 bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-200 text-xs rounded-full font-bold">Single Video Analysis</span>
-              <video src={selectedModalVideo} controls className="w-full h-48 rounded-lg mb-4" />
+              <div className="relative w-full h-48 rounded-lg mb-4 overflow-hidden bg-gray-900">
+                <video
+                  src={selectedModalVideo}
+                  controls
+                  className="w-full h-full object-cover rounded-lg"
+                />
+              </div>
               <h3 className="text-lg font-bold mb-2 text-gray-900 dark:text-white">Room Analysis Results</h3>
               {modalLoading ? (
                 <div className="text-gray-500 dark:text-gray-400">Loading analysis results...</div>
