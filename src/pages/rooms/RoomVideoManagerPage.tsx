@@ -9,7 +9,9 @@ import {
   Trash2,
   Camera,
   Save,
-  PlayCircle
+  PlayCircle,
+  Pause,
+  Play
 } from 'lucide-react';
 import {
   getHomeById,
@@ -66,6 +68,7 @@ const RoomVideoManagerPage = () => {
   const [uploadedVideos, setUploadedVideos] = useState<VideoItem[]>([]);
   const [isLiveRecording, setIsLiveRecording] = useState<boolean>(false);
   const [isStartingRecording, setIsStartingRecording] = useState<boolean>(false);
+  const [isPaused, setIsPaused] = useState<boolean>(false);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [processingProgress, setProcessingProgress] = useState<number>(0);
   const [videoAnalysis, setVideoAnalysis] = useState<Record<string, VideoAnalysisResult>>({});
@@ -185,6 +188,21 @@ const RoomVideoManagerPage = () => {
       const stream = videoRef.current?.srcObject as MediaStream;
       stream?.getTracks().forEach((track: MediaStreamTrack) => track.stop());
       if (videoRef.current) videoRef.current.srcObject = null;
+      setIsPaused(false);
+    }
+  };
+
+  const pauseLiveRecording = () => {
+    if (mediaRecorderRef.current && isLiveRecording && !isPaused) {
+      mediaRecorderRef.current.pause();
+      setIsPaused(true);
+    }
+  };
+
+  const resumeLiveRecording = () => {
+    if (mediaRecorderRef.current && isLiveRecording && isPaused) {
+      mediaRecorderRef.current.resume();
+      setIsPaused(false);
     }
   };
 
@@ -586,8 +604,9 @@ Provide ONLY the item names and descriptions. Do not include explanations or com
                 <div className={`w-full h-52 md:h-64 rounded-2xl mb-3 shadow-inner border-4 transition-all duration-300 ${isLiveRecording ? 'border-red-500' : 'border-gray-200 dark:border-gray-700'}`}>
                   <video ref={videoRef} autoPlay muted className="w-full h-full object-cover rounded-2xl" />
                   {isLiveRecording && (
-                    <span className="absolute top-3 left-3 flex items-center gap-2 px-3 py-1 bg-red-600 text-white text-xs font-bold rounded-full shadow-lg animate-pulse z-10">
-                      <span className="w-2 h-2 bg-white rounded-full animate-ping" />LIVE
+                    <span className={`absolute top-3 left-3 flex items-center gap-2 px-3 py-1 text-white text-xs font-bold rounded-full shadow-lg z-10 ${isPaused ? 'bg-yellow-600' : 'bg-red-600 animate-pulse'}`}>
+                      <span className={`w-2 h-2 bg-white rounded-full ${isPaused ? '' : 'animate-ping'}`} />
+                      {isPaused ? 'PAUSED' : 'LIVE'}
                     </span>
                   )}
                 </div>
@@ -619,10 +638,23 @@ Provide ONLY the item names and descriptions. Do not include explanations or com
               </div>
               <div className="flex gap-2 mt-2">
                 {isLiveRecording ? (
-                  <Button onClick={stopLiveRecording} className="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white flex items-center gap-2 px-6 py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 hover:cursor-pointer animate-pulse">
-                    <Square className="w-5 h-5" />
-                    Stop Recording
-                  </Button>
+                  <>
+                    {!isPaused ? (
+                      <Button onClick={pauseLiveRecording} className="bg-gradient-to-r from-yellow-600 to-yellow-700 hover:from-yellow-700 hover:to-yellow-800 text-white flex items-center gap-2 px-6 py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 hover:cursor-pointer">
+                        <Pause className="w-5 h-5" />
+                        Pause Recording
+                      </Button>
+                    ) : (
+                      <Button onClick={resumeLiveRecording} className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white flex items-center gap-2 px-6 py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 hover:cursor-pointer">
+                        <Play className="w-5 h-5" />
+                        Resume Recording
+                      </Button>
+                    )}
+                    <Button onClick={stopLiveRecording} className="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white flex items-center gap-2 px-6 py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 hover:cursor-pointer animate-pulse">
+                      <Square className="w-5 h-5" />
+                      Stop Recording
+                    </Button>
+                  </>
                 ) : (
                   <></>
                 )}
@@ -830,7 +862,7 @@ Provide ONLY the item names and descriptions. Do not include explanations or com
         </div>
         {/* Right: Previous Videos Section */}
         {/* Restore the right column layout for existing videos to the previous version */}
-        <div className="w-full md:w-1/4 flex flex-col gap-4 overflow-y-auto max-h-screen border-t md:border-t-0 md:border-l border-gray-200 dark:border-gray-700 shadow-lg z-10">
+        <div className="w-full md:w-1/4 flex flex-col gap-4 overflow-y-auto overflow-x-hidden max-h-screen border-t md:border-t-0 md:border-l border-gray-200 dark:border-gray-700 shadow-lg z-10">
           <div className="sticky top-0 z-30 bg-white dark:bg-gray-900 py-2 shadow-sm">
             <h2 className="text-xl ms-2 w-full font-bold text-gray-900 dark:text-white mb-2">Room Video Library</h2>
           </div>
