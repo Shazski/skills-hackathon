@@ -971,7 +971,7 @@ export const Rooms = () => {
   }, [toast]);
 
   return (
-    <div className="px-4 md:px-12 pb-20 md:pb-4">
+    <div className="px-4 md:px-12 pb-20 md:pb-4 pt-6">
 
       {toast && (
         <motion.div

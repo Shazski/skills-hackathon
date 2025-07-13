@@ -277,7 +277,7 @@ export const Home = () => {
   };
 
   return (
-    <div className="px-1 md:px-2 pb-20 md:pb-4">
+    <div className="px-1 md:px-2 pb-20 md:pb-4 pt-6">
       {toast && (
         <motion.div
           className="fixed top-4 right-4 z-[9999] max-w-sm"
@@ -333,7 +333,7 @@ export const Home = () => {
           animate={{ opacity: 1 }}
           transition={{ delay: 0.8, duration: 0.6 }}
         >
-          Discover your perfect living spaces
+          Explore Your Dream Space !
         </motion.p>
       </motion.div>
       <motion.div
