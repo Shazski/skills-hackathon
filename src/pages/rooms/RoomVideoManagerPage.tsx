@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { useParams } from 'react-router';
+import { useParams, Link } from 'react-router';
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
 import {
@@ -16,7 +16,9 @@ import {
   VolumeX,
   Maximize,
   SkipBack,
-  SkipForward
+  SkipForward,
+  ArrowLeft,
+  CheckCircle
 } from 'lucide-react';
 import {
   getHomeById,
@@ -103,6 +105,10 @@ const RoomVideoManagerPage = () => {
   const [isBatchAnalyzing, setIsBatchAnalyzing] = useState(false);
   // Add state for batch analyses
   const [batchAnalyses, setBatchAnalyses] = useState<any[]>([]);
+  // Add state for save success modal
+  const [showSaveSuccessModal, setShowSaveSuccessModal] = useState(false);
+  const [savedVideosCount, setSavedVideosCount] = useState(0);
+  const [leftSectionHeight, setLeftSectionHeight] = useState<number>(0);
   const [isVideoPlaying, setIsVideoPlaying] = useState<boolean>(false);
   const [isVideoMuted, setIsVideoMuted] = useState<boolean>(true);
   const [videoCurrentTime, setVideoCurrentTime] = useState<number>(0);
@@ -282,6 +288,35 @@ const RoomVideoManagerPage = () => {
   const stopVideo = () => {
     setPlayingVideo(null);
   };
+
+  // Function to measure and update left section height
+  const updateLeftSectionHeight = () => {
+    const leftSection = document.querySelector('.left-section') as HTMLElement;
+    if (leftSection) {
+      const height = leftSection.offsetHeight;
+      setLeftSectionHeight(height);
+    }
+  };
+
+  // Update height when content changes
+  useEffect(() => {
+    const updateHeight = () => {
+      setTimeout(() => {
+        updateLeftSectionHeight();
+      }, 50);
+    };
+
+    updateHeight();
+
+    // Create a ResizeObserver to watch for content changes
+    const leftSection = document.querySelector('.left-section') as HTMLElement;
+    if (leftSection) {
+      const resizeObserver = new ResizeObserver(updateHeight);
+      resizeObserver.observe(leftSection);
+
+      return () => resizeObserver.disconnect();
+    }
+  }, [recordedVideos, uploadedVideos, videoAnalysis, batchAnalysisResult, room]);
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
@@ -472,6 +507,8 @@ Provide ONLY the item names and descriptions. Do not include explanations or com
       setRoom(prev => prev ? { ...prev, videos: [...(prev.videos || []), ...cloudinaryUrls] } : null);
       setRecordedVideos([]);
       setUploadedVideos([]);
+      setSavedVideosCount(allVideos.length);
+      setShowSaveSuccessModal(true);
       setSuccess('Videos saved successfully!');
     } catch (err) {
       setError('Failed to save videos.');
@@ -643,6 +680,8 @@ Provide ONLY the item names and descriptions. Do not include explanations or com
       setRecordedVideos([]);
       setUploadedVideos([]);
       setBatchAnalysisResult([]);
+      setSavedVideosCount(allVideos.length);
+      setShowSaveSuccessModal(true);
       setSuccess('Batch videos and AI results saved!');
       setShowSuccessModal(true);
     } catch (err) {
@@ -665,10 +704,31 @@ Provide ONLY the item names and descriptions. Do not include explanations or com
 
   return (
     <>
+      {/* Header with back button */}
+      <div className="sticky top-0 z-40 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 px-4 py-3">
+        <div className="flex items-center justify-between">
+          <Link to={`/homes/${homeId}/rooms`}>
+            <Button variant="ghost" size="sm" className="flex items-center gap-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white">
+              <ArrowLeft className="w-4 h-4" />
+              Back to Rooms
+            </Button>
+          </Link>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-gradient-to-br from-blue-100 to-purple-100 dark:from-blue-900/20 dark:to-purple-900/20 rounded-xl flex items-center justify-center text-xl">
+              {room?.icon}
+            </div>
+            <div>
+              <h1 className="text-lg font-bold text-gray-900 dark:text-white">{room?.name}</h1>
+              <p className="text-sm text-gray-600 dark:text-gray-400">{room?.description}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Main content */}
-      <div className="flex flex-col md:flex-row min-h-screen gap-6 md:gap-0 overflow-hidden">
+      <div className="flex flex-col md:flex-row gap-6 md:gap-0 items-start">
         {/* Left: Record/Upload Section */}
-        <div className="w-full md:w-3/4 p-2 md:p-4 flex flex-col gap-4 border-b md:border-b-0 md:border-r border-gray-200 dark:border-gray-700 overflow-y-auto">
+        <div className="left-section w-full md:w-3/4 p-2 md:p-4 flex flex-col gap-4 border-b md:border-b-0 md:border-r border-gray-200 dark:border-gray-700">
           <h2 className="text-xl font-bold mb-2 text-gray-900 dark:text-white">Record or Upload Video</h2>
           {/* Live Recording Section */}
           <div className="mb-4">
@@ -1062,126 +1122,135 @@ Provide ONLY the item names and descriptions. Do not include explanations or com
         </div>
         {/* Right: Previous Videos Section */}
         {/* Restore the right column layout for existing videos to the previous version */}
-        <div className="w-full md:w-1/4 flex flex-col gap-4 overflow-y-auto overflow-x-hidden max-h-screen border-t md:border-t-0 md:border-l border-gray-200 dark:border-gray-700 shadow-lg z-10">
-          <div className="sticky top-0 z-30 bg-white dark:bg-gray-900 py-2 shadow-sm">
+        <div
+          className="w-full md:w-1/4 flex flex-col border-t md:border-t-0 md:border-l border-gray-200 dark:border-gray-700 shadow-lg z-10"
+          style={{
+            maxHeight: leftSectionHeight > 0 ? `${leftSectionHeight}px` : 'auto',
+            minHeight: '400px'
+          }}
+        >
+          <div className="sticky top-0 z-30 bg-white dark:bg-gray-900 py-2 shadow-sm border-b border-gray-200 dark:border-gray-700">
             <h2 className="text-xl ms-2 w-full font-bold text-gray-900 dark:text-white mb-2">Room Video Library</h2>
           </div>
-          {/* Show batch analyses first */}
-          {batchAnalyses.length > 0 && (
-            <div className="flex p-4 flex-col gap-4">
-              {batchAnalyses.map((batch, idx) => (
-                <div
-                  key={batch.id}
-                  className="relative flex flex-col gap-2 rounded-xl border border-gray-200 dark:border-gray-700 cursor-pointer bg-white/90 dark:bg-gray-900/80 shadow group hover:border-blue-400 dark:hover:border-blue-300 transition-all p-4"
-                  onClick={() => {
-                    setSelectedModalVideo(batch.videoUrls[0]);
-                    setSelectedModalVideoAnalysis({ items: batch.items, missingItems: [], type: 'batch', videoUrls: batch.videoUrls } as any);
-                    setModalLoading(false);
-                  }}
-                >
-                  {/* Tag */}
-                  <span className="absolute top-2 left-2 px-2 py-1 bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200 text-xs rounded-full font-bold">Multi-Video Analysis</span>
-                  {/* Video previews */}
-                  <div className="flex gap-2 mb-2">
-                    {batch.videoUrls.map((url: string, i: number) => (
-                      <video key={i} src={url} className="w-16 h-12 object-cover rounded border border-gray-100 dark:border-gray-800" />
-                    ))}
-                  </div>
-                  <span className="text-base text-gray-900 dark:text-white font-bold w-full text-left group-hover:text-blue-700 dark:group-hover:text-blue-300 transition">Combined Room Analysis {idx + 1}</span>
-                </div>
-              ))}
-            </div>
-          )}
-          {/* Show individual analyses */}
-          {room.videos && room.videos.length > 0 ? (
-            <div className="flex p-4 flex-col gap-4">
-              {room.videos.filter(url => !url.startsWith('batch:')).map((videoUrl, idx) => {
-                const analysis = roomAnalyses[videoUrl];
-                let dateString = '';
-                if (analysis && analysis.createdAt) {
-                  try {
-                    const d = analysis.createdAt.toDate ? analysis.createdAt.toDate() : new Date(analysis.createdAt.seconds ? analysis.createdAt.seconds * 1000 : analysis.createdAt);
-                    dateString = 'Added ' + formatDistanceToNow(d, { addSuffix: true });
-                  } catch { }
-                }
-                return (
+          <div className="flex-1 overflow-y-auto overflow-x-hidden" style={{ maxHeight: 'calc(100% - 60px)' }}>
+            {/* Show batch analyses first */}
+            {batchAnalyses.length > 0 && (
+              <div className="flex p-4 flex-col gap-4">
+                {batchAnalyses.map((batch, idx) => (
                   <div
-                    key={idx}
-                    className="relative flex flex-col gap-2 rounded-xl border border-gray-200 dark:border-gray-700 cursor-pointer bg-white/90 dark:bg-gray-900/80 shadow group hover:shadow-lg hover:scale-[1.02] transition-all duration-200 p-4"
-                    onClick={async e => {
-                      if ((e.target as HTMLElement).closest('.delete-btn')) return;
-                      setSelectedModalVideo(videoUrl);
-                      setModalLoading(true);
-                      let analysis = roomAnalyses[videoUrl];
-                      if (!analysis && room && room.id) {
-                        try {
-                          const analyses = await getCompletedAnalysesByRoomId(room.id);
-                          analysis = analyses.find(a => a.cloudinaryUrl === videoUrl || a.videoUrl === videoUrl) || null;
-                        } catch { }
-                      }
-                      setSelectedModalVideoAnalysis(analysis ? { ...analysis, type: 'individual', videoUrls: [videoUrl] } as any : null);
+                    key={batch.id}
+                    className="relative flex flex-col gap-2 rounded-xl border border-gray-200 dark:border-gray-700 cursor-pointer bg-white/90 dark:bg-gray-900/80 shadow group hover:border-blue-400 dark:hover:border-blue-300 transition-all p-4"
+                    onClick={() => {
+                      setSelectedModalVideo(batch.videoUrls[0]);
+                      setSelectedModalVideoAnalysis({ items: batch.items, missingItems: [], type: 'batch', videoUrls: batch.videoUrls } as any);
                       setModalLoading(false);
                     }}
                   >
-                    {/* Add Single Video Analysis tag to each card, with better placement */}
-                    <span className="absolute top-2 left-2 px-2 py-1 bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-200 text-xs rounded-full font-bold z-10">Single Video Analysis</span>
-                    {/* Video preview with play icon overlay */}
-                    <div className="relative w-full h-32 rounded-lg border border-gray-100 dark:border-gray-800 overflow-hidden group">
-                      <video
-                        ref={(el) => { videoRefs.current[videoUrl] = el; }}
-                        src={videoUrl}
-                        className="w-full h-32 object-cover"
-                        controls={playingVideo === videoUrl}
-                        onTimeUpdate={(e) => {
-                          const target = e.target as HTMLVideoElement;
-                          if (target.currentTime > 0) {
-                            target.style.opacity = '1';
-                          }
-                        }}
-                        onEnded={() => stopVideo()}
-                      />
-                      {playingVideo !== videoUrl && (
-                        <div className="absolute inset-0 bg-black/20 group-hover:bg-black/40 transition-all duration-200 flex items-center justify-center">
-                          <PlayCircle className="w-8 h-8 text-white/80 drop-shadow-lg" />
-                        </div>
+                    {/* Tag */}
+                    <span className="absolute top-2 left-2 px-2 py-1 bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200 text-xs rounded-full font-bold">Multi-Video Analysis</span>
+                    {/* Video previews */}
+                    <div className="flex gap-2 mb-2">
+                      {batch.videoUrls.map((url: string, i: number) => (
+                        <video key={i} src={url} className="w-16 h-12 object-cover rounded border border-gray-100 dark:border-gray-800" />
+                      ))}
+                    </div>
+                    <span className="text-base text-gray-900 dark:text-white font-bold w-full text-left group-hover:text-blue-700 dark:group-hover:text-blue-300 transition">Combined Room Analysis {idx + 1}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {/* Show individual analyses */}
+            {room.videos && room.videos.length > 0 ? (
+              <div className="flex p-4 flex-col gap-4">
+                {room.videos.filter(url => !url.startsWith('batch:')).map((videoUrl, idx) => {
+                  const analysis = roomAnalyses[videoUrl];
+                  let dateString = '';
+                  if (analysis && analysis.createdAt) {
+                    try {
+                      const d = analysis.createdAt.toDate ? analysis.createdAt.toDate() : new Date(analysis.createdAt.seconds ? analysis.createdAt.seconds * 1000 : analysis.createdAt);
+                      dateString = 'Added ' + formatDistanceToNow(d, { addSuffix: true });
+                    } catch { }
+                  }
+                  return (
+                    <div
+                      key={idx}
+                      className="relative flex flex-col gap-2 rounded-xl border border-gray-200 dark:border-gray-700 cursor-pointer bg-white/90 dark:bg-gray-900/80 shadow group hover:shadow-lg hover:scale-[1.02] transition-all duration-200 p-4"
+                      onClick={async e => {
+                        if ((e.target as HTMLElement).closest('.delete-btn')) return;
+                        setSelectedModalVideo(videoUrl);
+                        setModalLoading(true);
+                        let analysis = roomAnalyses[videoUrl];
+                        if (!analysis && room && room.id) {
+                          try {
+                            const analyses = await getCompletedAnalysesByRoomId(room.id);
+                            analysis = analyses.find(a => a.cloudinaryUrl === videoUrl || a.videoUrl === videoUrl) || null;
+                          } catch { }
+                        }
+                        setSelectedModalVideoAnalysis(analysis ? { ...analysis, type: 'individual', videoUrls: [videoUrl] } as any : null);
+                        setModalLoading(false);
+                      }}
+                    >
+                      {/* Add Single Video Analysis tag to each card, with better placement */}
+                      <span className="absolute top-2 left-2 px-2 py-1 bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-200 text-xs rounded-full font-bold z-10">Single Video Analysis</span>
+                      {/* Video preview with play icon overlay */}
+                      <div className="relative w-full h-32 rounded-lg border border-gray-100 dark:border-gray-800 overflow-hidden group">
+                        <video
+                          ref={(el) => { videoRefs.current[videoUrl] = el; }}
+                          src={videoUrl}
+                          className="w-full h-32 object-cover"
+                          controls={playingVideo === videoUrl}
+                          onTimeUpdate={(e) => {
+                            const target = e.target as HTMLVideoElement;
+                            if (target.currentTime > 0) {
+                              target.style.opacity = '1';
+                            }
+                          }}
+                          onEnded={() => stopVideo()}
+                        />
+                        {playingVideo !== videoUrl && (
+                          <div className="absolute inset-0 bg-black/20 group-hover:bg-black/40 transition-all duration-200 flex items-center justify-center">
+                            <PlayCircle className="w-8 h-8 text-white/80 drop-shadow-lg" />
+                          </div>
+                        )}
+                      </div>
+                      {/* Date below video (if available) */}
+                      {dateString && (
+                        <span className="text-xs text-gray-500 dark:text-gray-400 w-full text-left mt-1">{dateString}</span>
                       )}
                     </div>
-                    {/* Date below video (if available) */}
-                    {dateString && (
-                      <span className="text-xs text-gray-500 dark:text-gray-400 w-full text-left mt-1">{dateString}</span>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="flex flex-col items-center justify-center p-8 opacity-70">
-              <PlayCircle className="w-12 h-12 mb-2" />
-              <div className="text-base font-semibold">No videos found</div>
-              <div className="text-xs text-gray-500">Record or upload a video to get started.</div>
-            </div>
-          )}
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center p-8 opacity-70">
+                <PlayCircle className="w-12 h-12 mb-2" />
+                <div className="text-base font-semibold">No videos found</div>
+                <div className="text-xs text-gray-500">Record or upload a video to get started.</div>
+              </div>
+            )}
+          </div>
         </div>
-        {toast && (
-          <motion.div
-            className="fixed top-4 right-4 z-[9999] max-w-sm"
-            initial={{ opacity: 0, x: 100, y: -20 }}
-            animate={{ opacity: 1, x: 0, y: 0 }}
-            exit={{ opacity: 0, x: 100, y: -20 }}
-            transition={{ duration: 0.3 }}
+      </div>
+
+      {toast && (
+        <motion.div
+          className="fixed top-4 right-4 z-[9999] max-w-sm"
+          initial={{ opacity: 0, x: 100, y: -20 }}
+          animate={{ opacity: 1, x: 0, y: 0 }}
+          exit={{ opacity: 0, x: 100, y: -20 }}
+          transition={{ duration: 0.3 }}
+        >
+          <div className={`rounded-xl p-4 shadow-lg border ${toast.type === 'info'
+            ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300'
+            : toast.type === 'success'
+              ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 text-green-700 dark:text-green-300'
+              : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-700 dark:text-red-300'
+            }`}
           >
-            <div className={`rounded-xl p-4 shadow-lg border ${toast.type === 'info'
-              ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300'
-              : toast.type === 'success'
-                ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 text-green-700 dark:text-green-300'
-                : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-700 dark:text-red-300'
-              }`}
-            >
-              {toast.message}
-            </div>
-          </motion.div>
-        )}
-      </div >
+            {toast.message}
+          </div>
+        </motion.div>
+      )}
       {/* Modal for video preview & AI results */}
       {selectedModalVideo && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-2 md:p-0 bg-black/60 animate-fade-in" onClick={() => { setSelectedModalVideo(null); setSelectedModalVideoAnalysis(null); }}>
@@ -1238,15 +1307,96 @@ Provide ONLY the item names and descriptions. Do not include explanations or com
           )}
         </div>
       )}
-      {showSuccessModal && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60" onClick={() => setShowSuccessModal(false)}>
-          <div className="bg-white dark:bg-gray-900 rounded-xl shadow-xl p-6 max-w-sm w-full relative" onClick={e => e.stopPropagation()}>
-            <button className="absolute top-2 right-2 text-gray-500 hover:text-gray-900 dark:hover:text-white text-2xl" onClick={() => setShowSuccessModal(false)}>&times;</button>
+
+      {/* Save Success Modal */}
+      {showSaveSuccessModal && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60" onClick={() => setShowSaveSuccessModal(false)}>
+          <div className="bg-white dark:bg-gray-900 rounded-xl shadow-xl p-6 max-w-md w-full relative" onClick={e => e.stopPropagation()}>
+            <button className="absolute top-2 right-2 text-gray-500 hover:text-gray-900 dark:hover:text-white text-2xl" onClick={() => setShowSaveSuccessModal(false)}>&times;</button>
             <div className="flex flex-col items-center">
-              <div className="text-green-600 dark:text-green-400 text-4xl mb-2">✔️</div>
-              <h3 className="text-lg font-bold mb-2 text-gray-900 dark:text-white text-center">Video and AI results saved successfully!</h3>
-              <p className="text-gray-700 dark:text-gray-300 text-center">Your video and its analysis are now available in the room's video list.</p>
-              <Button className="mt-4" onClick={() => setShowSuccessModal(false)}>Close</Button>
+              <motion.div
+                className="w-20 h-20 bg-green-100 dark:bg-green-900/20 rounded-full flex items-center justify-center mx-auto mb-6"
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
+              >
+                <motion.div
+                  className="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center"
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ delay: 0.4, type: "spring", stiffness: 200 }}
+                >
+                  <CheckCircle className="w-8 h-8 text-white" />
+                </motion.div>
+              </motion.div>
+
+              <motion.h2
+                className="text-2xl font-bold text-gray-900 dark:text-white mb-4 text-center"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 }}
+              >
+                Videos Saved Successfully!
+              </motion.h2>
+
+              <motion.div
+                className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-xl p-4 mb-6 text-center"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.4 }}
+              >
+                <div className="w-16 h-16 bg-gradient-to-br from-blue-100 to-purple-100 dark:from-blue-900/20 dark:to-purple-900/20 rounded-xl flex items-center justify-center mx-auto mb-3 text-2xl">
+                  {room?.icon}
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                  {room?.name}
+                </h3>
+                <p className="text-gray-600 dark:text-gray-400 text-sm mb-3">
+                  {savedVideosCount} video{savedVideosCount !== 1 ? 's' : ''} added to your room
+                </p>
+                <div className="flex items-center justify-center gap-2 text-green-600 dark:text-green-400">
+                  <CheckCircle className="w-4 h-4" />
+                  <span className="text-sm font-medium">Ready for analysis</span>
+                </div>
+              </motion.div>
+
+              <motion.div
+                className="flex gap-3 w-full"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.5 }}
+              >
+                <Button
+                  variant="outline"
+                  onClick={() => setShowSaveSuccessModal(false)}
+                  className="flex-1 border-2 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700"
+                >
+                  Continue
+                </Button>
+                <Button
+                  onClick={() => {
+                    setShowSaveSuccessModal(false);
+                    // Optionally scroll to the video library section
+                    const videoLibrary = document.querySelector('.video-library-section');
+                    if (videoLibrary) {
+                      videoLibrary.scrollIntoView({ behavior: 'smooth' });
+                    }
+                  }}
+                  className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold flex items-center gap-2"
+                >
+                  <Video className="w-4 h-4" />
+                  View Videos
+                </Button>
+              </motion.div>
+
+              <motion.div
+                className="mt-4 text-xs text-gray-500 dark:text-gray-400 text-center"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.6 }}
+              >
+                Your videos are now available in the room's video library for AI analysis.
+              </motion.div>
             </div>
           </div>
         </div>

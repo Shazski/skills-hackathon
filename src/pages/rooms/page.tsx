@@ -13,7 +13,8 @@ import {
   Save,
   Download,
   CheckCircle,
-  DoorOpen
+  DoorOpen,
+  Brain
 } from 'lucide-react';
 import { extractFramesFromVideo } from '../../lib/utils';
 import {
@@ -82,6 +83,22 @@ export const Rooms = () => {
     icon: '🏠',
     description: ''
   });
+
+  // Room icon options with better visual representation
+  const roomIcons = [
+    { icon: '🏠', name: 'House', category: 'General' },
+    { icon: '🛋️', name: 'Living Room', category: 'Living' },
+    { icon: '🛏️', name: 'Bedroom', category: 'Sleeping' },
+    { icon: '🍽️', name: 'Kitchen', category: 'Cooking' },
+    { icon: '🚿', name: 'Bathroom', category: 'Bathroom' },
+    { icon: '🏃', name: 'Gym', category: 'Fitness' },
+    { icon: '📚', name: 'Office', category: 'Work' },
+    { icon: '🎮', name: 'Game Room', category: 'Entertainment' },
+    { icon: '🎨', name: 'Studio', category: 'Creative' },
+    { icon: '🏊', name: 'Pool', category: 'Outdoor' },
+    { icon: '🚗', name: 'Garage', category: 'Storage' },
+    { icon: '🏡', name: 'Garden', category: 'Outdoor' }
+  ];
   const [creatingRoom, setCreatingRoom] = useState(false);
   const [testingConnection, setTestingConnection] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
@@ -785,13 +802,10 @@ export const Rooms = () => {
         setCreatingRoom(true);
         console.log('Creating room with data:', { homeId, name: newRoom.name, description: newRoom.description });
 
-        const roomIcons = ['🏠', '🍳', '🛋️', '🛏️', '🚿', '🍽️', '📚', '🏃‍♂️', '🎮', '🧘‍♀️', '🏋️‍♂️', '🎨', '🎵', '🌱', '🐕'];
-        const randomIcon = roomIcons[Math.floor(Math.random() * roomIcons.length)];
-
         const roomData = {
           homeId,
           name: newRoom.name,
-          icon: randomIcon,
+          icon: newRoom.icon,
           description: newRoom.description
         };
 
@@ -802,7 +816,7 @@ export const Rooms = () => {
         const newRoomData: Room = {
           id: roomId,
           name: newRoom.name,
-          icon: randomIcon,
+          icon: newRoom.icon,
           videos: [],
           description: newRoom.description,
           hasCompletedAnalysis: false
@@ -974,9 +988,18 @@ export const Rooms = () => {
               : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-700 dark:text-red-300'
             }`}>
             <div className="flex items-center gap-3">
-              <span className="text-lg">
-                {toast.type === 'info' ? '💡' : toast.type === 'success' ? '✅' : '⚠️'}
-              </span>
+              <div className={`w-6 h-6 rounded-full flex items-center justify-center ${toast.type === 'info' ? 'bg-blue-100 dark:bg-blue-900/20' :
+                toast.type === 'success' ? 'bg-green-100 dark:bg-green-900/20' :
+                  'bg-red-100 dark:bg-red-900/20'
+                }`}>
+                {toast.type === 'info' ? (
+                  <div className="w-2 h-2 bg-blue-600 dark:bg-blue-400 rounded-full" />
+                ) : toast.type === 'success' ? (
+                  <CheckCircle className="w-4 h-4 text-green-600 dark:text-green-400" />
+                ) : (
+                  <div className="w-2 h-2 bg-red-600 dark:bg-red-400 rounded-full" />
+                )}
+              </div>
               <span className="text-sm font-medium">{toast.message}</span>
               <button
                 onClick={() => setToast(null)}
@@ -1008,7 +1031,7 @@ export const Rooms = () => {
           animate={{ opacity: 1 }}
           transition={{ delay: 0.2 }}
         >
-          🏠 {home ? home.name : 'Loading...'} - Rooms
+          {home ? home.name : 'Loading...'} - Rooms
         </motion.h1>
       </motion.div>
 
@@ -1037,8 +1060,10 @@ export const Rooms = () => {
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
         >
-          <div className="flex items-center gap-2 text-red-700 dark:text-red-300">
-            <span className="text-lg">⚠️</span>
+          <div className="flex items-center gap-3 text-red-700 dark:text-red-300">
+            <div className="w-6 h-6 bg-red-100 dark:bg-red-900/20 rounded-full flex items-center justify-center">
+              <div className="w-2 h-2 bg-red-600 dark:bg-red-400 rounded-full" />
+            </div>
             <span>{error}</span>
           </div>
         </motion.div>
@@ -1050,8 +1075,10 @@ export const Rooms = () => {
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
         >
-          <div className="flex items-center gap-2 text-green-700 dark:text-green-300">
-            <span className="text-lg">✅</span>
+          <div className="flex items-center gap-3 text-green-700 dark:text-green-300">
+            <div className="w-6 h-6 bg-green-100 dark:bg-green-900/20 rounded-full flex items-center justify-center">
+              <CheckCircle className="w-4 h-4 text-green-600 dark:text-green-400" />
+            </div>
             <span>{success}</span>
           </div>
         </motion.div>
@@ -1082,7 +1109,9 @@ export const Rooms = () => {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
           >
-            <div className="text-6xl mb-6">🏠</div>
+            <div className="w-24 h-24 bg-gradient-to-br from-blue-100 to-purple-100 dark:from-blue-900/20 dark:to-purple-900/20 rounded-full flex items-center justify-center mb-6">
+              <DoorOpen className="w-12 h-12 text-blue-600 dark:text-blue-400" />
+            </div>
             <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-4 text-center">
               No Rooms Yet
             </h3>
@@ -1154,7 +1183,9 @@ export const Rooms = () => {
               )}
 
               <div className="p-6">
-                <div className="text-4xl mb-4">{room.icon}</div>
+                <div className="w-16 h-16 bg-gradient-to-br from-blue-100 to-purple-100 dark:from-blue-900/20 dark:to-purple-900/20 rounded-xl flex items-center justify-center mb-4 text-2xl">
+                  {room.icon}
+                </div>
                 <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
                   {room.name}
                 </h3>
@@ -1371,9 +1402,14 @@ export const Rooms = () => {
                   </div>
 
                   <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-                    <p className="text-blue-700 dark:text-blue-300 text-sm">
-                      💡 <strong>Tip:</strong> Make sure you have good lighting and a stable camera position for the best recording quality.
-                    </p>
+                    <div className="flex items-start gap-3">
+                      <div className="w-5 h-5 bg-blue-100 dark:bg-blue-900/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <div className="w-2 h-2 bg-blue-600 dark:bg-blue-400 rounded-full" />
+                      </div>
+                      <p className="text-blue-700 dark:text-blue-300 text-sm">
+                        <strong>Tip:</strong> Make sure you have good lighting and a stable camera position for the best recording quality.
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1442,11 +1478,15 @@ export const Rooms = () => {
                               transition={{ duration: 0.5 }}
                             >
                               <h4 className="text-sm font-semibold text-purple-700 dark:text-purple-300 mb-3 flex items-center gap-2">
-                                🤖 AI Analysis Results
+                                <div className="w-5 h-5 bg-purple-100 dark:bg-purple-900/20 rounded-full flex items-center justify-center">
+                                  <Brain className="w-3 h-3 text-purple-600 dark:text-purple-400" />
+                                </div>
+                                AI Analysis Results
                               </h4>
                               <div className="mb-3">
                                 <h5 className="text-xs font-medium text-green-700 dark:text-green-300 mb-2 flex items-center gap-1">
-                                  ✅ Detected Items ({analysis.items.length})
+                                  <CheckCircle className="w-3 h-3" />
+                                  Detected Items ({analysis.items.length})
                                 </h5>
                                 <div className="flex flex-wrap gap-1">
                                   {(analysis.items || []).map((item: string, itemIndex: number) => (
@@ -1687,8 +1727,8 @@ export const Rooms = () => {
                           transition={{ delay: 1 }}
                         >
                           {currentOperation === 'save-analyze'
-                            ? '✨ Processing videos and detecting items'
-                            : '💾 Saving videos to your room'
+                            ? 'Processing videos and detecting items'
+                            : 'Saving videos to your room'
                           }
                         </motion.div>
                       </motion.div>
@@ -1800,6 +1840,31 @@ export const Rooms = () => {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Room Icon
+                    </label>
+                    <div className="grid grid-cols-6 gap-2">
+                      {roomIcons.map((iconOption) => (
+                        <button
+                          key={iconOption.icon}
+                          type="button"
+                          onClick={() => setNewRoom(prev => ({ ...prev, icon: iconOption.icon }))}
+                          className={`w-12 h-12 rounded-xl border-2 transition-all duration-200 flex items-center justify-center text-xl hover:scale-105 ${newRoom.icon === iconOption.icon
+                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 shadow-md'
+                            : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 hover:border-blue-300 dark:hover:border-blue-600'
+                            }`}
+                          title={iconOption.name}
+                        >
+                          {iconOption.icon}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                      Choose an icon that best represents your room
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                       Description
                     </label>
                     <textarea
@@ -1899,11 +1964,13 @@ export const Rooms = () => {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.4 }}
                 >
-                  <div className="text-4xl mb-3">{createdRoomData.icon}</div>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                  <div className="w-16 h-16 bg-gradient-to-br from-blue-100 to-purple-100 dark:from-blue-900/20 dark:to-purple-900/20 rounded-xl flex items-center justify-center mx-auto mb-3 text-2xl">
+                    {createdRoomData.icon}
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2 text-center">
                     {createdRoomData.name}
                   </h3>
-                  <p className="text-gray-600 dark:text-gray-400 text-sm">
+                  <p className="text-gray-600 dark:text-gray-400 text-sm text-center">
                     {createdRoomData.description}
                   </p>
                 </motion.div>
