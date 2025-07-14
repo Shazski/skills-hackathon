@@ -8,13 +8,11 @@ import {
   Square,
   Trash2,
   Camera,
-  Save,
   PlayCircle,
   Pause,
   Play,
   Volume2,
   VolumeX,
-  Maximize,
   SkipBack,
   SkipForward,
   ArrowLeft,
@@ -93,19 +91,13 @@ const RoomVideoManagerPage = () => {
   const [modalLoading, setModalLoading] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [savingToRoom, setSavingToRoom] = useState<Record<string, boolean>>({});
-  // Add a state to cache analyses for right column
   const [roomAnalyses, setRoomAnalyses] = useState<Record<string, VideoAnalysis | null>>({});
-  // 1. Add a state to track Cloudinary URLs for each video
   const [videoCloudinaryUrls, setVideoCloudinaryUrls] = useState<Record<string, string>>({});
-  // Add a state for delete confirmation
   const [videoToDelete, setVideoToDelete] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  // New state for batch analysis result
   const [batchAnalysisResult, setBatchAnalysisResult] = useState<string[]>([]);
   const [isBatchAnalyzing, setIsBatchAnalyzing] = useState(false);
-  // Add state for batch analyses
   const [batchAnalyses, setBatchAnalyses] = useState<any[]>([]);
-  // Add state for save success modal
   const [showSaveSuccessModal, setShowSaveSuccessModal] = useState(false);
   const [savedVideosCount, setSavedVideosCount] = useState(0);
   const [leftSectionHeight, setLeftSectionHeight] = useState<number>(0);
@@ -116,14 +108,12 @@ const RoomVideoManagerPage = () => {
   const [showVideoControls, setShowVideoControls] = useState<boolean>(false);
   const [playingVideo, setPlayingVideo] = useState<string | null>(null);
 
-  // Combine all detected items from analyzed videos (remove duplicates)
   const combinedAnalysisResult = useMemo(() => {
     const allItems = Object.values(videoAnalysis)
       .flatMap(result => result.items || []);
     return Array.from(new Set(allItems));
   }, [videoAnalysis]);
 
-  // Fetch home and room data
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
@@ -144,7 +134,6 @@ const RoomVideoManagerPage = () => {
     fetchData();
   }, [homeId, roomId]);
 
-  // Fetch analyses for right column when room.videos changes
   useEffect(() => {
     async function fetchAnalyses() {
       if (!room || !room.id || !room.videos) return;
@@ -160,7 +149,6 @@ const RoomVideoManagerPage = () => {
     fetchAnalyses();
   }, [room && room.id, room && room.videos && room.videos.join(",")]);
 
-  // Fetch batch analyses when room changes
   useEffect(() => {
     async function fetchBatchAnalyses() {
       if (!room || !room.id) return;
@@ -172,7 +160,6 @@ const RoomVideoManagerPage = () => {
     fetchBatchAnalyses();
   }, [room && room.id]);
 
-  // Video recording logic
   const startLiveRecording = async () => {
     setIsStartingRecording(true);
     try {
@@ -224,7 +211,6 @@ const RoomVideoManagerPage = () => {
     }
   };
 
-  // Video player functions
   const toggleVideoPlay = () => {
     if (videoRef.current) {
       if (isVideoPlaying) {
