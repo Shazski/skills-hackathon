@@ -725,13 +725,13 @@ export const Home = () => {
                           animate={{ rotate: 360 }}
                           transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
                           className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full"
-                          />
+                        />
                         Creating...
                       </>
                     ) : (
                       <>
                         <HomeIcon className="w-5 h-5" />
-                      {newHome.imageUrl}
+                        {newHome.imageUrl}
                         Create Home
                       </>
                     )}
@@ -979,12 +979,46 @@ export const Home = () => {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Address</label>
-                <input
-                  type="text"
-                  value={editHomeData.address}
-                  onChange={e => setEditHomeData(prev => ({ ...prev, address: e.target.value }))}
-                  className="w-full px-4 py-3 border-2 border-gray-200 dark:border-gray-700 focus:border-yellow-500 dark:focus:border-yellow-400 rounded-xl transition-all duration-300 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                />
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={editHomeData.address}
+                    onChange={async (e) => {
+                      const value = e.target.value;
+                      setEditHomeData(prev => ({ ...prev, address: value }));
+                      setAddressDropdownOpen(true);
+                      await fetchAddressSuggestions(value);
+                    }}
+                    placeholder="Enter home address"
+                    className="w-full px-4 py-3 border-2 border-gray-200 dark:border-gray-700 focus:border-blue-500 dark:focus:border-blue-400 rounded-md transition-all duration-300 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    autoComplete="off"
+                    onFocus={() => {
+                      if (newHome.address) setAddressDropdownOpen(true);
+                    }}
+                    onBlur={() => setTimeout(() => setAddressDropdownOpen(false), 150)}
+                  />
+                  {addressDropdownOpen && addressSuggestions.length > 0 && (
+                    <div className="absolute z-20 left-0 right-0 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md shadow-lg mt-1 max-h-48 overflow-y-auto">
+                      {addressSuggestions.map((suggestion, idx) => (
+                        <div
+                          key={idx}
+                          className="px-4 py-2 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/30 text-gray-800 dark:text-gray-100"
+                          onMouseDown={() => {
+                            setEditHomeData(prev => ({ ...prev, address: suggestion }));
+                            setAddressDropdownOpen(false);
+                          }}
+                        >
+                          {suggestion}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {addressDropdownOpen && addressLoading && (
+                    <div className="absolute left-0 right-0 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md shadow-lg mt-1 px-4 py-2 text-gray-500 text-sm">
+                      Loading...
+                    </div>
+                  )}
+                </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Home Image</label>
