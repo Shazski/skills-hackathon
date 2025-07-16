@@ -108,6 +108,7 @@ const RoomVideoManagerPage = () => {
   const [showVideoControls, setShowVideoControls] = useState<boolean>(false);
   const [playingVideo, setPlayingVideo] = useState<string | null>(null);
   const newVideosRef = useRef<HTMLDivElement>(null);
+  const [batchProgress, setBatchProgress] = useState(0);
 
   const combinedAnalysisResult = useMemo(() => {
     const allItems = Object.values(videoAnalysis)
@@ -514,28 +515,27 @@ Provide ONLY the item names and descriptions. Do not include explanations or com
   // Batch analysis function
   const analyzeAllVideosAsBatch = async () => {
     setIsBatchAnalyzing(true);
-    setBatchAnalysisResult([]);
+    setBatchProgress(0);
     try {
       // Gather all new videos
       const allVideos = [...recordedVideos, ...uploadedVideos];
 
-      // First, upload all videos to Cloudinary
-      console.log('Uploading videos to Cloudinary...');
+      // Upload all videos to Cloudinary
+      setBatchProgress(10);
       await Promise.all(allVideos.map(async (video) => {
         if (video.file && !videoCloudinaryUrls[video.url]) {
           try {
             const cloudinaryUrl = await uploadToCloudinary(video.file);
             setVideoCloudinaryUrls(prev => ({ ...prev, [video.url]: cloudinaryUrl }));
-            console.log('Uploaded video:', video.url, 'to:', cloudinaryUrl);
           } catch (err) {
-            console.error('Failed to upload video:', video.url, err);
             throw err;
           }
         }
       }));
+      setBatchProgress(30);
 
-      let allFrames: File[] = [];
       // Extract frames from each video
+      let allFrames: File[] = [];
       for (const video of allVideos) {
         if (video.file) {
           const frames = await extractFramesFromVideo(video.file, 2); // 2 frames per video (adjust as needed)
@@ -544,13 +544,19 @@ Provide ONLY the item names and descriptions. Do not include explanations or com
           });
         }
       }
+      setBatchProgress(50);
+
       // Upload all frames to Cloudinary
       const frameImageUrls: string[] = [];
-      for (const frameFile of allFrames) {
+      for (let i = 0; i < allFrames.length; i++) {
+        const frameFile = allFrames[i];
         const url = await uploadToCloudinary(frameFile);
         frameImageUrls.push(url);
+        setBatchProgress(50 + Math.round((i + 1) / allFrames.length * 20)); // 50-70%
       }
+
       // Prepare OpenAI Vision API call
+      setBatchProgress(80);
       const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
       if (!apiKey) throw new Error('OpenAI API key is missing.');
       const openaiContent = [
@@ -584,6 +590,7 @@ Provide ONLY the item names and descriptions. Do not include explanations or com
           max_tokens: 1000,
         }),
       });
+      setBatchProgress(90);
       if (!res.ok) {
         const errorText = await res.text();
         throw new Error(`OpenAI API error: ${res.status} - ${errorText}`);
@@ -609,7 +616,7 @@ Provide ONLY the item names and descriptions. Do not include explanations or com
           lower.startsWith('elements:') ||
           lower.includes('based on the video frames') ||
           lower.includes('relevant for a home or room analysis') ||
-          line.trim().match(/^#+\s/) // markdown headings like #, ##, ###, ####
+          line.trim().match(/^#+\s/)
         ) {
           return;
         }
@@ -624,8 +631,10 @@ Provide ONLY the item names and descriptions. Do not include explanations or com
         }
       });
       setBatchAnalysisResult(items);
+      setBatchProgress(100);
     } catch (err) {
       setBatchAnalysisResult(["Failed to analyze videos as a batch."]);
+      setBatchProgress(0);
     } finally {
       setIsBatchAnalyzing(false);
     }
@@ -1067,7 +1076,7 @@ Provide ONLY the item names and descriptions. Do not include explanations or com
                             ))}
                           </div>
                           <div className="w-48 bg-white/20 rounded-full h-2 overflow-hidden">
-                            <motion.div className="h-full bg-blue-500 rounded-full" initial={{ width: '0%' }} animate={{ width: '80%' }} transition={{ duration: 1.5, repeat: Infinity, repeatType: 'reverse', ease: 'easeInOut' }} />
+                            <motion.div className="h-full bg-blue-500 rounded-full" initial={{ width: '0%' }} animate={{ width: `${batchProgress}%` }} transition={{ duration: 0.5, ease: 'easeInOut' }} />
                           </div>
                           <motion.div className="text-blue-700 dark:text-white font-semibold" animate={{ opacity: [0.7, 1, 0.7] }} transition={{ duration: 1.5, repeat: Infinity }}>
                             Analyzing all videos as one...
