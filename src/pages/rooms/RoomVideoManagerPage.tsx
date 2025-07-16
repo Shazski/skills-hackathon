@@ -183,7 +183,7 @@ const RoomVideoManagerPage = () => {
         const blob = new Blob(chunksRef.current, { type: 'video/webm' });
         const videoUrl = URL.createObjectURL(blob);
         const videoFile = new File([blob], `recorded-video-${Date.now()}.webm`, { type: 'video/webm' });
-        setRecordedVideos(prev => [...prev, { url: videoUrl, file: videoFile }]);
+        setRecordedVideos(prev => [...prev,{ url: videoUrl, file: videoFile }]);
         setIsLiveRecording(false);
       };
       mediaRecorder.start();
