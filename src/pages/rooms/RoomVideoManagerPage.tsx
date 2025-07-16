@@ -1129,27 +1129,38 @@ Provide ONLY the item names and descriptions. Do not include explanations or com
             {/* Show batch analyses first */}
             {batchAnalyses.length > 0 && (
               <div className="flex p-4 flex-col gap-4">
-                {batchAnalyses.map((batch, idx) => (
-                  <div
-                    key={batch.id}
-                    className="relative flex flex-col gap-2 rounded-md border border-gray-200 dark:border-gray-700 cursor-pointer bg-white/90 dark:bg-gray-900/80 shadow group hover:border-blue-400 dark:hover:border-blue-300 transition-all p-4"
-                    onClick={() => {
-                      setSelectedModalVideo(batch.videoUrls[0]);
-                      setSelectedModalVideoAnalysis({ items: batch.items, missingItems: [], type: 'batch', videoUrls: batch.videoUrls } as any);
-                      setModalLoading(false);
-                    }}
-                  >
-                    {/* Tag */}
-                    <span className="absolute top-2 left-2 px-2 py-1 bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200 text-xs rounded-full font-bold">Multi-Video Analysis</span>
-                    {/* Video previews */}
-                    <div className="flex gap-2 mb-2">
-                      {batch.videoUrls.map((url: string, i: number) => (
-                        <video key={i} src={url} className="w-16 h-12 object-cover rounded border border-gray-100 dark:border-gray-800" />
-                      ))}
+                {batchAnalyses.map((batch, idx) => {
+                  let dateString = '';
+                  if (batch.createdAt) {
+                    try {
+                      const d = batch.createdAt.toDate ? batch.createdAt.toDate() : new Date(batch.createdAt.seconds ? batch.createdAt.seconds * 1000 : batch.createdAt);
+                      dateString = 'Added ' + formatDistanceToNow(d, { addSuffix: true });
+                    } catch { }
+                  }
+                  return (
+                    <div
+                      key={batch.id}
+                      className="relative flex flex-col gap-2 rounded-md border border-gray-200 dark:border-gray-700 cursor-pointer bg-white/90 dark:bg-gray-900/80 shadow group hover:border-blue-400 dark:hover:border-blue-300 transition-all p-4"
+                      onClick={() => {
+                        setSelectedModalVideo(batch.videoUrls[0]);
+                        setSelectedModalVideoAnalysis({ items: batch.items, missingItems: [], type: 'batch', videoUrls: batch.videoUrls } as any);
+                        setModalLoading(false);
+                      }}
+                    >
+                      {/* Tag */}
+                      <span className="absolute top-2 left-2 px-2 py-1 bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200 text-xs rounded-full font-bold">Multi-Video Analysis</span>
+                      {/* Video previews */}
+                      <div className="flex gap-2 mb-2">
+                        {batch.videoUrls.map((url: string, i: number) => (
+                          <video key={i} src={url} className="w-16 h-12 object-cover rounded border border-gray-100 dark:border-gray-800" />
+                        ))}
+                      </div>
+                      {dateString && (
+                        <span className="text-xs text-gray-500 dark:text-gray-400 w-full text-left mt-1">{dateString}</span>
+                      )}
                     </div>
-                    <span className="text-base text-gray-900 dark:text-white font-bold w-full text-left group-hover:text-blue-700 dark:group-hover:text-blue-300 transition">Combined Room Analysis {idx + 1}</span>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
             {/* Show individual analyses */}
