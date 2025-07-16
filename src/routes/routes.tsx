@@ -24,7 +24,7 @@ export const router = createBrowserRouter([
         element: <ProtectedRoute />,
         children: [
           { path: "", element: <Home /> },
-          { path: "rooms/:homeId", element: <Rooms /> },
+          { path: "homes/:homeId", element: <Rooms /> },
           { path: "homes/:homeId/rooms/:roomId", element: <RoomVideoManagerPage /> },
           { path: "video-analysis", element: <VideoAnalysisPage /> },
           { path: "comparison", element: <ComparisonPage /> },

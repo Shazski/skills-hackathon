@@ -108,9 +108,9 @@ export function NavBar() {
 
   const handleResultClick = (result: SearchResult) => {
     if (result.type === 'home') {
-      navigate(`/rooms/${result.id}`);
+      navigate(`/homes/${result.id}`);
     } else if (result.type === 'room') {
-      navigate(`/rooms/${result.homeId}`);
+      navigate(`/homes/${result.homeId}`);
     }
     setSearchQuery('');
     setShowSearchResults(false);

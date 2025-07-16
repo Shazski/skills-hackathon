@@ -53,7 +53,7 @@ export const Home = () => {
   const [savingEdit, setSavingEdit] = useState(false);
 
   const handleCardClick = (homeId: string) => {
-    navigate(`/rooms/${homeId}`);
+    navigate(`/homes/${homeId}`);
   };
 
   const uploadToCloudinary = async (file: File): Promise<string> => {
@@ -586,7 +586,7 @@ export const Home = () => {
                     value={newHome.name}
                     onChange={(e) => setNewHome(prev => ({ ...prev, name: e.target.value }))}
                     placeholder="e.g., Downtown Apartment, Beach House"
-                    className="w-full px-4 py-3 border-2 border-gray-200 dark:border-gray-700 focus:border-blue-500 dark:focus:border-blue-400 rounded-xl transition-all duration-300 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    className="w-full px-4 py-3 border-2 border-gray-200 dark:border-gray-700 focus:border-blue-500 dark:focus:border-blue-400 rounded-md transition-all duration-300 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   />
                 </div>
 
@@ -599,7 +599,7 @@ export const Home = () => {
                     value={newHome.address}
                     onChange={(e) => setNewHome(prev => ({ ...prev, address: e.target.value }))}
                     placeholder="Enter home address"
-                    className="w-full px-4 py-3 border-2 border-gray-200 dark:border-gray-700 focus:border-blue-500 dark:focus:border-blue-400 rounded-xl transition-all duration-300 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    className="w-full px-4 py-3 border-2 border-gray-200 dark:border-gray-700 focus:border-blue-500 dark:focus:border-blue-400 rounded-md transition-all duration-300 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   />
                 </div>
 
@@ -608,7 +608,7 @@ export const Home = () => {
                     Home Image <span className="text-orange-500">*</span>
                     <span className="text-xs text-gray-500 ml-2">(Recommended)</span>
                   </label>
-                  <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl p-6 text-center hover:border-blue-500 dark:hover:border-blue-400 transition-colors">
+                  <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-md p-6 text-center hover:border-blue-500 dark:hover:border-blue-400 transition-colors">
                     <input
                       id="home-image-upload"
                       type="file"

@@ -693,8 +693,8 @@ Provide ONLY the item names and descriptions. Do not include explanations or com
       {/* Header with back button */}
       <div className="sticky top-0 z-40 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 px-4 py-3">
         <div className="flex items-center justify-between">
-          <Link to={`/homes/${homeId}/rooms`}>
-            <Button variant="ghost" size="sm" className="flex items-center gap-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white">
+          <Link to={`/homes/${homeId}`}>
+            <Button variant="ghost" size="sm" className="flex items-center gap-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white cursor-pointer">
               <ArrowLeft className="w-4 h-4" />
               Back to Rooms
             </Button>
@@ -722,7 +722,7 @@ Provide ONLY the item names and descriptions. Do not include explanations or com
               <Camera className="w-5 h-5" />
               Live Recording
             </h3>
-            <div className="bg-gradient-to-br from-blue-100/60 via-white/80 to-purple-100/60 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 rounded-3xl p-4 md:p-6 mb-2 border border-blue-200 dark:border-blue-700 shadow-2xl relative overflow-hidden">
+            <div className="bg-gradient-to-br from-blue-100/60 via-white/80 to-purple-100/60 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 rounded-md p-4 md:p-6 mb-2 border border-blue-200 dark:border-blue-700 shadow-md relative overflow-hidden">
               <div className="relative flex flex-col items-center">
                 <div className={`w-full h-72 md:h-80 lg:h-96 rounded-2xl mb-3 shadow-inner border-4 transition-all duration-300 relative overflow-hidden ${isLiveRecording ? 'border-red-500' : 'border-gray-200 dark:border-gray-700'}`}>
                   <video
@@ -936,7 +936,7 @@ Provide ONLY the item names and descriptions. Do not include explanations or com
                 ))}
               </ul>
               {/* Save to Room button for batch */}
-              <Button className="mt-4 bg-gradient-to-r from-green-600 to-blue-600 text-white font-semibold py-2 px-6 rounded-xl shadow hover:scale-105 transition-all hover:cursor-pointer" onClick={saveBatchToRoom} disabled={isProcessing || !room}>
+              <Button className="mt-4 bg-gradient-to-r from-green-600 to-blue-600 text-white font-semibold py-2 px-6 rounded-md shadow hover:scale-105 transition-all hover:cursor-pointer" onClick={saveBatchToRoom} disabled={isProcessing || !room}>
                 {isProcessing ? 'Saving...' : 'Save to Room'}
               </Button>
             </motion.div>
@@ -950,7 +950,7 @@ Provide ONLY the item names and descriptions. Do not include explanations or com
                 {/* Per-video Analyze Button */}
                 {([...recordedVideos, ...uploadedVideos].some(v => !videoAnalysis[v.url]) && analyzingVideos.size === 0 && !isBatchAnalyzing && batchAnalysisResult.length === 0) && (
                   <Button
-                    className="bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold py-2 px-6 rounded-xl shadow hover:scale-105 transition-all hover:cursor-pointer"
+                    className="bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold py-2 px-6 rounded-md shadow hover:scale-105 transition-all hover:cursor-pointer"
                     onClick={async () => {
                       await Promise.all(
                         [...recordedVideos, ...uploadedVideos].map((video, index) =>
@@ -973,7 +973,7 @@ Provide ONLY the item names and descriptions. Do not include explanations or com
                 {/* Analyze All Videos as One Button */}
                 {([...recordedVideos, ...uploadedVideos].length > 1 && !isBatchAnalyzing && batchAnalysisResult.length === 0 && analyzingVideos.size === 0) && (
                   <Button
-                    className="bg-gradient-to-r from-purple-600 to-blue-600 text-white font-semibold py-2 px-6 rounded-xl shadow hover:scale-105 transition-all hover:cursor-pointer"
+                    className="bg-gradient-to-r from-purple-600 to-blue-600 text-white font-semibold py-2 px-6 rounded-md shadow hover:scale-105 transition-all hover:cursor-pointer"
                     onClick={analyzeAllVideosAsBatch}
                   >
                     Analyze All Videos as One
@@ -1094,7 +1094,7 @@ Provide ONLY the item names and descriptions. Do not include explanations or com
                 ([...recordedVideos, ...uploadedVideos].every(v => videoAnalysis[v.url]) && !analyzingVideos.size && batchAnalysisResult.length === 0) && (
                   <div className="flex justify-end mt-4">
                     <Button
-                      className="bg-gradient-to-r from-green-600 to-blue-600 text-white font-semibold py-2 px-6 rounded-xl shadow hover:scale-105 transition-all hover:cursor-pointer"
+                      className="bg-gradient-to-r from-green-600 to-blue-600 text-white font-semibold py-2 px-6 rounded-md shadow hover:scale-105 transition-all hover:cursor-pointer"
                       onClick={saveVideosToRoom}
                       disabled={isProcessing}
                     >
@@ -1109,14 +1109,14 @@ Provide ONLY the item names and descriptions. Do not include explanations or com
         {/* Right: Previous Videos Section */}
         {/* Restore the right column layout for existing videos to the previous version */}
         <div
-          className="w-full md:w-1/4 flex flex-col border-t md:border-t-0 md:border-l border-gray-200 dark:border-gray-700 shadow-lg z-10"
+          className="w-full md:w-1/4 flex flex-col border-t md:border-t-0 md:border-l border-gray-200 dark:border-gray-700 z-10"
           style={{
             maxHeight: leftSectionHeight > 0 ? `${leftSectionHeight}px` : 'auto',
             minHeight: '400px'
           }}
         >
           <div className="sticky top-0 z-30 bg-white dark:bg-gray-900 py-2 shadow-sm border-b border-gray-200 dark:border-gray-700">
-            <h2 className="text-xl ms-2 w-full font-bold text-gray-900 dark:text-white mb-2">Room Video Library</h2>
+            <h2 className="text-xl ms-2 w-full font-bold text-gray-900 dark:text-white mt-1 mb-1">Room Video Library</h2>
           </div>
           <div className="flex-1 overflow-y-auto overflow-x-hidden" style={{ maxHeight: 'calc(100% - 60px)' }}>
             {/* Show batch analyses first */}
@@ -1125,7 +1125,7 @@ Provide ONLY the item names and descriptions. Do not include explanations or com
                 {batchAnalyses.map((batch, idx) => (
                   <div
                     key={batch.id}
-                    className="relative flex flex-col gap-2 rounded-xl border border-gray-200 dark:border-gray-700 cursor-pointer bg-white/90 dark:bg-gray-900/80 shadow group hover:border-blue-400 dark:hover:border-blue-300 transition-all p-4"
+                    className="relative flex flex-col gap-2 rounded-md border border-gray-200 dark:border-gray-700 cursor-pointer bg-white/90 dark:bg-gray-900/80 shadow group hover:border-blue-400 dark:hover:border-blue-300 transition-all p-4"
                     onClick={() => {
                       setSelectedModalVideo(batch.videoUrls[0]);
                       setSelectedModalVideoAnalysis({ items: batch.items, missingItems: [], type: 'batch', videoUrls: batch.videoUrls } as any);
