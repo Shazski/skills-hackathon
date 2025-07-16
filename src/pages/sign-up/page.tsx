@@ -15,6 +15,12 @@ import { useState } from "react"
 import { Link, useNavigate } from "react-router"
 import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
 import { auth } from "@/lib/firebase";
+import { Loader } from '@/components/ui/Loader';
+
+interface Toast {
+  message: string;
+  type: 'info' | 'success' | 'error';
+}
 
 export function SignUp() {
   const [showPassword, setShowPassword] = useState(false);
@@ -28,6 +34,7 @@ export function SignUp() {
   });
   const [toast, setToast] = useState<Toast | null>(null);
   const navigate = useNavigate()
+  const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -61,6 +68,7 @@ export function SignUp() {
       return;
     }
 
+    setLoading(true);
     try {
       await createUserWithEmailAndPassword(auth, email, password);
       
@@ -76,6 +84,8 @@ export function SignUp() {
         type: 'error'
       });
       console.error("Signup error:", error);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -88,6 +98,7 @@ export function SignUp() {
 
   return (
     <div>
+      {loading && <Loader />}
       {toast && (
         <motion.div
           className="fixed top-4 right-4 z-[9999] max-w-sm"

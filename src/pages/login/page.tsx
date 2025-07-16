@@ -15,6 +15,12 @@ import { useState } from "react"
 import { Link, useNavigate } from "react-router"
 import { signInWithEmailAndPassword } from "firebase/auth"
 import { auth } from "@/lib/firebase"
+import { Loader } from '@/components/ui/Loader';
+
+interface Toast {
+  message: string;
+  type: 'info' | 'success' | 'error';
+}
 
 export function Login() {
   const [showPassword, setShowPassword] = useState(false);
@@ -54,6 +60,7 @@ export function Login() {
 
   return (
     <div className="flex items-start justify-center p-6 pt-20 md:pt-4 md:items-center w-full py-8">
+      {loading && <Loader />}
 
       {toast && (
         <motion.div

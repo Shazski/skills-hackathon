@@ -11,8 +11,10 @@ import {
   getRoomsByHomeId,
   getCompletedAnalysesByRoomId,
   type Home as FirebaseHome,
-  updateHome
+  updateHome,
+  getHomesByUserId
 } from '../../lib/firebaseService';
+import { auth } from '../../lib/firebase';
 
 interface Home {
   id: string;
@@ -113,9 +115,13 @@ export const Home = () => {
       try {
         setLoading(true);
         setError(null);
-
-        const firebaseHomes = await getAllHomes();
-
+        const user = auth.currentUser;
+        if (!user) {
+          setError('User not authenticated');
+          setLoading(false);
+          return;
+        }
+        const firebaseHomes = await getHomesByUserId(user.uid);
         const homesWithAnalysisStatus = await Promise.all(
           firebaseHomes.map(async (firebaseHome) => {
             const analysisStatus = await checkHomeAnalysisStatus(firebaseHome.id);
@@ -129,17 +135,13 @@ export const Home = () => {
             };
           })
         );
-
-        console.log('Homes with analysis status:', homesWithAnalysisStatus);
         setHomes(homesWithAnalysisStatus);
       } catch (error) {
-        console.error('Error loading homes:', error);
         setError(`Failed to load homes: ${error instanceof Error ? error.message : 'Unknown error'}`);
       } finally {
         setLoading(false);
       }
     };
-
     loadHomesAndAnalysisStatus();
   }, []);
 
@@ -160,27 +162,20 @@ export const Home = () => {
 
   const handleCreateHome = async () => {
     if (newHome.name.trim() && newHome.address.trim()) {
-
       if (!selectedImage) {
         setToast({
           message: 'Please upload an image for your home!',
           type: 'error'
         });
-
         setTimeout(() => setToast(null), 4000);
         return;
       }
-
       try {
         setCreatingHome(true);
-        console.log('Creating home with data:', { name: newHome.name, address: newHome.address });
-
         let imageUrl = '';
         try {
           imageUrl = await uploadToCloudinary(selectedImage.file);
-          console.log('Image uploaded to Cloudinary:', imageUrl);
         } catch (error) {
-          console.error('Failed to upload image:', error);
           setToast({
             message: 'Failed to upload image. Please try again!',
             type: 'error'
@@ -189,17 +184,20 @@ export const Home = () => {
           setCreatingHome(false);
           return;
         }
-
+        const user = auth.currentUser;
+        if (!user) {
+          setToast({ message: 'User not authenticated!', type: 'error' });
+          setTimeout(() => setToast(null), 4000);
+          setCreatingHome(false);
+          return;
+        }
         const homeData = {
           name: newHome.name,
           address: newHome.address,
-          imageUrl
+          imageUrl,
+          userId: user.uid
         };
-
-        console.log('Sending home data to Firebase:', homeData);
         const homeId = await createHome(homeData);
-        console.log('Home created successfully with ID:', homeId);
-
         const newHomeData: Home = {
           id: homeId,
           name: newHome.name,
@@ -208,31 +206,24 @@ export const Home = () => {
           hasAllRoomsAnalyzed: false,
           hasAnyRoomAnalyzed: false
         };
-
         setHomes(prev => [...prev, newHomeData]);
         setNewHome({ name: '', address: '', imageUrl: '' });
         setSelectedImage(null);
         setShowCreateHome(false);
-
-
         setCreatedHomeData(newHomeData);
         setShowSuccessModal(true);
         setError(null);
-
-
         setTimeout(() => {
           setShowSuccessModal(false);
           setCreatedHomeData(null);
         }, 5000);
       } catch (error) {
-        console.error('Error creating home:', error);
         setError(`Failed to create home: ${error instanceof Error ? error.message : 'Unknown error'}`);
         setSuccess(null);
       } finally {
         setCreatingHome(false);
       }
     } else {
-
       if (!newHome.name.trim() || !newHome.address.trim()) {
         setToast({
           message: 'Please fill in both home name and address!',

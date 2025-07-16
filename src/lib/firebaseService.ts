@@ -50,6 +50,7 @@ export interface Home {
   name: string;
   address: string;
   imageUrl?: string;
+  userId: string;
   createdAt: any;
   updatedAt: any;
 }
@@ -58,6 +59,7 @@ export interface CreateHomeData {
   name: string;
   address: string;
   imageUrl?: string;
+  userId: string;
 }
 
 // Helper to wrap API calls with loader
@@ -344,6 +346,34 @@ export const getAllHomes = async (): Promise<Home[]> => {
     });
   } catch (error) {
     console.error('Error getting homes:', error);
+    throw error;
+  }
+};
+
+export const getHomesByUserId = async (userId: string): Promise<Home[]> => {
+  try {
+    const q = query(
+      collection(db, 'homes'),
+      where('userId', '==', userId)
+    );
+    const querySnapshot = await getDocs(q);
+    const homes: Home[] = [];
+    querySnapshot.forEach((doc: QueryDocumentSnapshot<DocumentData>) => {
+      const data = doc.data();
+      if (!data.deletedAt) {
+        homes.push({
+          id: doc.id,
+          ...data
+        } as Home);
+      }
+    });
+    return homes.sort((a, b) => {
+      const aTime = a.createdAt?.toDate?.() || new Date(0);
+      const bTime = b.createdAt?.toDate?.() || new Date(0);
+      return bTime.getTime() - aTime.getTime();
+    });
+  } catch (error) {
+    console.error('Error getting homes by userId:', error);
     throw error;
   }
 };
