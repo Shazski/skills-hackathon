@@ -53,6 +53,9 @@ export const Home = () => {
   const [editHomeData, setEditHomeData] = useState({ name: '', address: '', imageUrl: '' });
   const [editImage, setEditImage] = useState<{ url: string; file: File } | null>(null);
   const [savingEdit, setSavingEdit] = useState(false);
+  const [addressSuggestions, setAddressSuggestions] = useState<string[]>([]);
+  const [addressLoading, setAddressLoading] = useState(false);
+  const [addressDropdownOpen, setAddressDropdownOpen] = useState(false);
 
   const handleCardClick = (homeId: string) => {
     navigate(`/homes/${homeId}`);
@@ -265,6 +268,33 @@ export const Home = () => {
       y: 0,
       transition: { delay: i * 0.1, type: "spring" as const, stiffness: 60 },
     }),
+  };
+
+  // Helper to fetch address suggestions (now using Mapbox)
+  const fetchAddressSuggestions = async (input: string) => {
+    if (!input) {
+      setAddressSuggestions([]);
+      return;
+    }
+    setAddressLoading(true);
+    try {
+      const token = import.meta.env.VITE_MAPBOX_TOKEN;
+      const res = await fetch(
+        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(
+          input
+        )}.json?autocomplete=true&types=address&access_token=${token}`
+      );
+      const data = await res.json();
+      if (data.features && Array.isArray(data.features)) {
+        setAddressSuggestions(data.features.map((f: any) => f.place_name));
+      } else {
+        setAddressSuggestions([]);
+      }
+    } catch {
+      setAddressSuggestions([]);
+    } finally {
+      setAddressLoading(false);
+    }
   };
 
   return (
@@ -585,13 +615,46 @@ export const Home = () => {
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Address
                   </label>
-                  <input
-                    type="text"
-                    value={newHome.address}
-                    onChange={(e) => setNewHome(prev => ({ ...prev, address: e.target.value }))}
-                    placeholder="Enter home address"
-                    className="w-full px-4 py-3 border-2 border-gray-200 dark:border-gray-700 focus:border-blue-500 dark:focus:border-blue-400 rounded-md transition-all duration-300 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                  />
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={newHome.address}
+                      onChange={async (e) => {
+                        const value = e.target.value;
+                        setNewHome(prev => ({ ...prev, address: value }));
+                        setAddressDropdownOpen(true);
+                        await fetchAddressSuggestions(value);
+                      }}
+                      placeholder="Enter home address"
+                      className="w-full px-4 py-3 border-2 border-gray-200 dark:border-gray-700 focus:border-blue-500 dark:focus:border-blue-400 rounded-md transition-all duration-300 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                      autoComplete="off"
+                      onFocus={() => {
+                        if (newHome.address) setAddressDropdownOpen(true);
+                      }}
+                      onBlur={() => setTimeout(() => setAddressDropdownOpen(false), 150)}
+                    />
+                    {addressDropdownOpen && addressSuggestions.length > 0 && (
+                      <div className="absolute z-20 left-0 right-0 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md shadow-lg mt-1 max-h-48 overflow-y-auto">
+                        {addressSuggestions.map((suggestion, idx) => (
+                          <div
+                            key={idx}
+                            className="px-4 py-2 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/30 text-gray-800 dark:text-gray-100"
+                            onMouseDown={() => {
+                              setNewHome(prev => ({ ...prev, address: suggestion }));
+                              setAddressDropdownOpen(false);
+                            }}
+                          >
+                            {suggestion}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {addressDropdownOpen && addressLoading && (
+                      <div className="absolute left-0 right-0 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md shadow-lg mt-1 px-4 py-2 text-gray-500 text-sm">
+                        Loading...
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <div>
@@ -995,4 +1058,4 @@ export const Home = () => {
       )}
     </div>
   );
-}; 
+};
