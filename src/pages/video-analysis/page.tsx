@@ -28,6 +28,7 @@ export default function VideoAnalysisPage() {
   const canAnalyze = videoFile;
 
   const resultsRef = useRef<HTMLDivElement>(null);
+  const uploaderRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -36,6 +37,12 @@ export default function VideoAnalysisPage() {
     }
   }, [showResults]);
 
+  useEffect(() => {
+    if (videoUrl && uploaderRef.current) {
+      uploaderRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [videoUrl]);
+
   const handleVideoChange = (file: File | null, url: string | null) => {
     setVideoFile(file);
     setVideoUrl(url);
@@ -43,12 +50,7 @@ export default function VideoAnalysisPage() {
     setResults("");
     setShowResults(false);
     setUploadProgress(0);
-    // Scroll to bottom after upload/record
-    setTimeout(() => {
-      if (bottomRef.current) {
-        bottomRef.current.scrollIntoView({ behavior: 'smooth' });
-      }
-    }, 100);
+    // (No need for setTimeout scroll here anymore)
   };
 
   const uploadToCloudinary = async (file: File): Promise<string> => {
@@ -196,6 +198,7 @@ export default function VideoAnalysisPage() {
         <div className="w-full max-w-4xl space-y-8">
           {/* Upload Section */}
           <motion.div
+            ref={uploaderRef}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
