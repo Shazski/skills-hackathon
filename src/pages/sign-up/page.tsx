@@ -41,7 +41,7 @@ export function SignUp() {
     const { firstName, lastName, email, password, confirmPassword } = formData;
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!firstName || !lastName || !email || !password || !confirmPassword) {
+    if (!firstName || !email || !password ) {
       setToast({
         message: 'All fields are required.',
         type: 'error'
@@ -59,14 +59,14 @@ export function SignUp() {
       return;
     }
 
-    if (password !== confirmPassword) {
-      setToast({
-        message: 'Passwords do not match!',
-        type: 'error'
-      });
-      setTimeout(() => setToast(null), 4000);
-      return;
-    }
+    // if (password !== confirmPassword) {
+    //   setToast({
+    //     message: 'Passwords do not match!',
+    //     type: 'error'
+    //   });
+    //   setTimeout(() => setToast(null), 4000);
+    //   return;
+    // }
 
     setLoading(true);
     try {
@@ -178,7 +178,7 @@ export function SignUp() {
                         transition={{ delay: 0.5 }}
                       >
                         <Label htmlFor="firstName" className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                          First Name
+                          Name <span className="text-orange-500">*</span>
                         </Label>
                         <div className="relative">
                           <User className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -194,7 +194,7 @@ export function SignUp() {
                         </div>
                       </motion.div>
 
-                      <motion.div
+                      {/* <motion.div
                         className="space-y-2"
                         initial={{ opacity: 0, x: -20 }}
                         animate={{ opacity: 1, x: 0 }}
@@ -215,7 +215,7 @@ export function SignUp() {
                             required
                           />
                         </div>
-                      </motion.div>
+                      </motion.div> */}
                     </div>
 
                     <motion.div
@@ -225,7 +225,7 @@ export function SignUp() {
                       transition={{ delay: 0.6 }}
                     >
                       <Label htmlFor="email" className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                        Email Address
+                        Email <span className="text-orange-500">*</span>
                       </Label>
                       <div className="relative">
                         <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -248,7 +248,7 @@ export function SignUp() {
                       transition={{ delay: 0.65 }}
                     >
                       <Label htmlFor="password" className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                        Password
+                        Password <span className="text-orange-500">*</span>
                       </Label>
                       <div className="relative">
                         <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -271,7 +271,7 @@ export function SignUp() {
                       </div>
                     </motion.div>
 
-                    <motion.div
+                    {/* <motion.div
                       className="space-y-2"
                       initial={{ opacity: 0, x: -20 }}
                       animate={{ opacity: 1, x: 0 }}
@@ -299,7 +299,7 @@ export function SignUp() {
                           {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                         </button>
                       </div>
-                    </motion.div>
+                    </motion.div> */}
                   </div>
                 </form>
               </CardContent>

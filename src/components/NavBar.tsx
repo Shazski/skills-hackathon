@@ -191,7 +191,7 @@ export function NavBar() {
               <motion.img
                 src={LOGO}
                 alt="Logo"
-                className="h-12 w-12 rounded-lg shadow-md"
+                className="h-20 w-20"
                 whileHover={{ rotate: 5 }}
                 transition={{ type: "decay", stiffness: 200 }}
               />

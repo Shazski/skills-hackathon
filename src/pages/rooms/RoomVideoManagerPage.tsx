@@ -940,62 +940,11 @@ Provide ONLY the item names and descriptions. Do not include explanations or com
               </label>
             </div>
           </div>
-          {/* Batch AI Analysis Results below upload option */}
-          {batchAnalysisResult.length > 0 && (
-            <motion.div className="mb-6 p-4 bg-gradient-to-r from-green-50 to-blue-50 dark:from-green-900/20 dark:to-blue-900/20 rounded-lg border border-green-200 dark:border-green-700">
-              <h4 className="text-base font-semibold text-green-700 dark:text-green-300 mb-3 flex items-center gap-2">
-                🤖 Batch AI Analysis Results (All Videos as One)
-              </h4>
-              <ul className="list-disc pl-6 text-gray-800 dark:text-gray-200">
-                {batchAnalysisResult.map((item, idx) => (
-                  <li key={idx}>{item}</li>
-                ))}
-              </ul>
-              {/* Save to Room button for batch */}
-              <Button className="mt-4 bg-gradient-to-r from-green-600 to-blue-600 text-white font-semibold py-2 px-6 rounded-md shadow hover:scale-105 transition-all hover:cursor-pointer" onClick={saveBatchToRoom} disabled={isProcessing || !room}>
-                {isProcessing ? 'Saving...' : 'Save to Room'}
-              </Button>
-            </motion.div>
-          )}
           {/* New Videos Section: reduce margin */}
           {(recordedVideos.length > 0 || uploadedVideos.length > 0) && (
             <div ref={newVideosRef} className="mb-4">
               <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-2">New Videos</h3>
-              {/* Analyze Buttons Row */}
-              <div className="flex flex-row gap-3 mb-3">
-                {/* Per-video Analyze Button */}
-                {([...recordedVideos, ...uploadedVideos].some(v => !videoAnalysis[v.url]) && analyzingVideos.size === 0 && !isBatchAnalyzing && batchAnalysisResult.length === 0) && (
-                  <Button
-                    className="bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold py-2 px-6 rounded-md shadow hover:scale-105 transition-all hover:cursor-pointer"
-                    onClick={async () => {
-                      await Promise.all(
-                        [...recordedVideos, ...uploadedVideos].map((video, index) =>
-                          !videoAnalysis[video.url] ? analyzeVideoWithAI(video.url, index, video.file, undefined) : null
-                        )
-                      );
-                    }}
-                    disabled={analyzingVideos.size > 0}
-                  >
-                    {analyzingVideos.size > 0 ? (
-                      <span className="flex items-center gap-2">
-                        <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path></svg>
-                        Analyzing...
-                      </span>
-                    ) : (
-                      'Analyze Room'
-                    )}
-                  </Button>
-                )}
-                {/* Analyze All Videos as One Button */}
-                {([...recordedVideos, ...uploadedVideos].length > 1 && !isBatchAnalyzing && batchAnalysisResult.length === 0 && analyzingVideos.size === 0) && (
-                  <Button
-                    className="bg-gradient-to-r from-purple-600 to-blue-600 text-white font-semibold py-2 px-6 rounded-md shadow hover:scale-105 transition-all hover:cursor-pointer"
-                    onClick={analyzeAllVideosAsBatch}
-                  >
-                    Analyze All Videos as One
-                  </Button>
-                )}
-              </div>
+              
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {[...recordedVideos, ...uploadedVideos].map((video, index) => (
                   <div key={index} className="relative group mb-6 w-full">
@@ -1088,7 +1037,7 @@ Provide ONLY the item names and descriptions. Do not include explanations or com
                       </div>
                     )}
                     {/* Per-video AI results (unchanged) */}
-                    {videoAnalysis[video.url] && !analyzingVideos.has(video.url) && (
+                    {videoAnalysis[video.url] && !analyzingVideos.has(video.url) && batchAnalysisResult.length == 0 (
                       <motion.div className="mt-3 p-4 bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 rounded-lg border border-purple-200 dark:border-purple-700" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
                         <h4 className="text-sm font-semibold text-purple-700 dark:text-purple-300 mb-3 flex items-center gap-2">🤖 AI Analysis Results</h4>
                         <div className="mb-3">
@@ -1105,6 +1054,44 @@ Provide ONLY the item names and descriptions. Do not include explanations or com
                   </div>
                 ))}
               </div>
+
+              {/* Analyze Buttons Row */}
+              <div className="flex flex-row gap-3 mb-3 justify-end">
+                {/* Per-video Analyze Button */}
+                {([...recordedVideos, ...uploadedVideos].some(v => !videoAnalysis[v.url]) && analyzingVideos.size === 0 && !isBatchAnalyzing && batchAnalysisResult.length === 0) && (
+                  <Button
+                    className="bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold py-2 px-6 rounded-md shadow hover:scale-105 transition-all hover:cursor-pointer"
+                    onClick={async () => {
+                      await Promise.all(
+                        [...recordedVideos, ...uploadedVideos].map((video, index) =>
+                          !videoAnalysis[video.url] ? analyzeVideoWithAI(video.url, index, video.file, undefined) : null
+                        )
+                      );
+                    }}
+                    disabled={analyzingVideos.size > 0}
+                  >
+                    {analyzingVideos.size > 0 ? (
+                      <span className="flex items-center gap-2">
+                        <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path></svg>
+                        Analyzing...
+                      </span>
+                    ) : (
+                      <>
+                      {[...recordedVideos, ...uploadedVideos].length == 1 ? 'Analyze video' : 'Analyze each video separately'}
+                      </>
+                    )}
+                  </Button>
+                )}
+                {/* Analyze All Videos as One Button */}
+                {([...recordedVideos, ...uploadedVideos].some(v => !videoAnalysis[v.url]) && !isBatchAnalyzing && batchAnalysisResult.length === 0 && analyzingVideos.size === 0) && (
+                  <Button
+                    className="bg-gradient-to-r from-purple-600 to-blue-600 text-white font-semibold py-2 px-6 rounded-md shadow hover:scale-105 transition-all hover:cursor-pointer"
+                    onClick={analyzeAllVideosAsBatch}
+                  >
+                    Analyze All Videos as One
+                  </Button>
+                )}
+              </div>
               {/* After the grid of new videos, show a single Save to Room button if all have been analyzed */}
               {[...recordedVideos, ...uploadedVideos].length > 0 &&
                 ([...recordedVideos, ...uploadedVideos].every(v => videoAnalysis[v.url]) && !analyzingVideos.size && batchAnalysisResult.length === 0) && (
@@ -1120,6 +1107,23 @@ Provide ONLY the item names and descriptions. Do not include explanations or com
                 )
               }
             </div>
+          )}
+          {/* Batch AI Analysis Results below upload option */}
+          {batchAnalysisResult.length > 0 && (
+            <motion.div className="mb-6 p-4 bg-gradient-to-r from-green-50 to-blue-50 dark:from-green-900/20 dark:to-blue-900/20 rounded-lg border border-green-200 dark:border-green-700">
+              <h4 className="text-base font-semibold text-green-700 dark:text-green-300 mb-3 flex items-center gap-2">
+                🤖 Batch AI Analysis Results (All Videos as One)
+              </h4>
+              <ul className="list-disc pl-6 text-gray-800 dark:text-gray-200">
+                {batchAnalysisResult.map((item, idx) => (
+                  <li key={idx}>{item}</li>
+                ))}
+              </ul>
+              {/* Save to Room button for batch */}
+              <Button className="mt-4 bg-gradient-to-r from-green-600 to-blue-600 text-white font-semibold py-2 px-6 rounded-md shadow hover:scale-105 transition-all hover:cursor-pointer" onClick={saveBatchToRoom} disabled={isProcessing || !room}>
+                {isProcessing ? 'Saving...' : 'Save to Room'}
+              </Button>
+            </motion.div>
           )}
         </div>
         {/* Right: Previous Videos Section */}

@@ -797,7 +797,7 @@ export const Rooms = () => {
   };
 
   const handleCreateRoom = async () => {
-    if (newRoom.name.trim() && newRoom.description.trim() && homeId) {
+    if (newRoom.name.trim() && homeId) {
       try {
         setCreatingRoom(true);
         console.log('Creating room with data:', { homeId, name: newRoom.name, description: newRoom.description });
@@ -845,9 +845,9 @@ export const Rooms = () => {
       }
     } else {
 
-      if (!newRoom.name.trim() || !newRoom.description.trim()) {
+      if (!newRoom.name.trim()) {
         setToast({
-          message: 'Please fill in both room name and description!',
+          message: 'Please fill the room name!',
           type: 'error'
         });
 
@@ -1121,7 +1121,7 @@ export const Rooms = () => {
             </p>
             <Button
               onClick={() => setShowCreateRoom(true)}
-              className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold rounded-md px-8 py-4 flex items-center gap-3 shadow-lg hover:shadow-xl transition-all duration-300 text-lg hover:cursor-pointer"
+              className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold rounded-md px-8 py-6 flex items-center gap-3 shadow-lg hover:shadow-xl transition-all duration-300 text-lg hover:cursor-pointer"
             >
               <DoorOpen className="w-6 h-6" />
               Create Your First Room
@@ -1827,7 +1827,7 @@ export const Rooms = () => {
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Room Name
+                      Room Name <span className="text-orange-500">*</span>
                     </label>
                     <input
                       type="text"
@@ -1887,7 +1887,7 @@ export const Rooms = () => {
                     </Button>
                     <Button
                       onClick={handleCreateRoom}
-                      disabled={!newRoom.name.trim() || !newRoom.description.trim() || creatingRoom}
+                      disabled={!newRoom.name.trim() || creatingRoom}
                       className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold flex items-center gap-2 hover:cursor-pointer"
                     >
                       {creatingRoom ? (
@@ -1996,7 +1996,7 @@ export const Rooms = () => {
                     }}
                     className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold flex items-center gap-2"
                   >
-                    <Video className="w-4 h-4" />
+                    {/* <Video className="w-4 h-4" /> */}
                     Open Room
                   </Button>
                 </motion.div>

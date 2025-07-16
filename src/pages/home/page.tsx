@@ -441,7 +441,7 @@ export const Home = () => {
             </p>
             <Button
               onClick={() => setShowCreateHome(true)}
-              className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold rounded-md px-8 py-4 flex items-center gap-3 shadow-lg hover:shadow-xl transition-all duration-300 text-lg cursor-pointer"
+              className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold rounded-md px-8 py-6 flex items-center gap-3 shadow-lg hover:shadow-xl transition-all duration-300 text-lg cursor-pointer"
             >
               <span className="text-2xl">🏠</span>
               Create Your First Home
@@ -600,7 +600,7 @@ export const Home = () => {
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Home Name
+                    Home Name <span className="text-orange-500">*</span>
                   </label>
                   <input
                     type="text"
@@ -613,7 +613,7 @@ export const Home = () => {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Address
+                    Address <span className="text-orange-500">*</span>
                   </label>
                   <div className="relative">
                     <input
