@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { VideoUploader } from "../../components/VideoUploader";
 import { VideoAnalysisResult } from "../../components/VideoAnalysisResult";
 import { motion } from "framer-motion";
@@ -27,6 +27,15 @@ export default function VideoAnalysisPage() {
   const isLoggedIn = false; // Replace with real auth logic
   const canAnalyze = videoFile;
 
+  const resultsRef = useRef<HTMLDivElement>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (showResults && resultsRef.current) {
+      resultsRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [showResults]);
+
   const handleVideoChange = (file: File | null, url: string | null) => {
     setVideoFile(file);
     setVideoUrl(url);
@@ -34,6 +43,12 @@ export default function VideoAnalysisPage() {
     setResults("");
     setShowResults(false);
     setUploadProgress(0);
+    // Scroll to bottom after upload/record
+    setTimeout(() => {
+      if (bottomRef.current) {
+        bottomRef.current.scrollIntoView({ behavior: 'smooth' });
+      }
+    }, 100);
   };
 
   const uploadToCloudinary = async (file: File): Promise<string> => {
@@ -315,6 +330,7 @@ export default function VideoAnalysisPage() {
           {/* Results Section */}
           {showResults && (
             <motion.div
+              ref={resultsRef}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2 }}
@@ -327,6 +343,7 @@ export default function VideoAnalysisPage() {
               />
             </motion.div>
           )}
+          <div ref={bottomRef} />
         </div>
       </main>
 

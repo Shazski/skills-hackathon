@@ -107,6 +107,7 @@ const RoomVideoManagerPage = () => {
   const [videoDuration, setVideoDuration] = useState<number>(0);
   const [showVideoControls, setShowVideoControls] = useState<boolean>(false);
   const [playingVideo, setPlayingVideo] = useState<string | null>(null);
+  const newVideosRef = useRef<HTMLDivElement>(null);
 
   const combinedAnalysisResult = useMemo(() => {
     const allItems = Object.values(videoAnalysis)
@@ -159,6 +160,12 @@ const RoomVideoManagerPage = () => {
     }
     fetchBatchAnalyses();
   }, [room && room.id]);
+
+  useEffect(() => {
+    if ((recordedVideos.length > 0 || uploadedVideos.length > 0) && newVideosRef.current) {
+      newVideosRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [recordedVideos.length, uploadedVideos.length]);
 
   const startLiveRecording = async () => {
     setIsStartingRecording(true);
@@ -943,7 +950,7 @@ Provide ONLY the item names and descriptions. Do not include explanations or com
           )}
           {/* New Videos Section: reduce margin */}
           {(recordedVideos.length > 0 || uploadedVideos.length > 0) && (
-            <div className="mb-4">
+            <div ref={newVideosRef} className="mb-4">
               <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-2">New Videos</h3>
               {/* Analyze Buttons Row */}
               <div className="flex flex-row gap-3 mb-3">
