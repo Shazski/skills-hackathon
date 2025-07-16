@@ -486,7 +486,7 @@ export const Home = () => {
                   animate={{ opacity: 1 }}
                   transition={{ delay: 0.3 + i * 0.1 }}
                 >
-                  <span>{home.name}</span>
+                  <span className="truncate max-w-xs" title={home.name}>{home.name}</span>
                   <div className="flex items-center gap-1">
                     <Button
                       variant="ghost"
@@ -531,7 +531,10 @@ export const Home = () => {
                   animate={{ opacity: 1 }}
                   transition={{ delay: 0.4 + i * 0.1 }}
                 >
-                  <span>📍 {home.address}</span>
+                    {/* Pin Icon */}
+                    <span className="flex-shrink-0 self-start">📍</span>
+                    {/* Address Text */}
+                    <span>{home.address}</span>
                 </motion.div>
 
                 {/* <div className="flex gap-2">
