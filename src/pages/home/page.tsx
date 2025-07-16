@@ -653,7 +653,7 @@ export const Home = () => {
                   </Button>
                   <Button
                     onClick={handleCreateHome}
-                    disabled={!newHome.name.trim() || !newHome.address.trim() || creatingHome}
+                    disabled={!newHome.name.trim() || !newHome.address.trim() || creatingHome || !selectedImage?.url}
                     className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold flex items-center gap-2 cursor-pointer"
                   >
                     {creatingHome ? (
@@ -662,12 +662,13 @@ export const Home = () => {
                           animate={{ rotate: 360 }}
                           transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
                           className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full"
-                        />
+                          />
                         Creating...
                       </>
                     ) : (
                       <>
                         <HomeIcon className="w-5 h-5" />
+                      {newHome.imageUrl}
                         Create Home
                       </>
                     )}

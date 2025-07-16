@@ -1,4 +1,4 @@
-import LOGO from '../assets/logo.jpg'
+import LOGO from '../assets/Logo2.png'
 import { ModeToggle } from './mode-toggle';
 import { motion } from 'framer-motion';
 import { Home, Search, User, Menu, X, Building, DoorOpen, LogOut } from 'lucide-react';
@@ -28,7 +28,7 @@ export function NavBar() {
   const [isSearching, setIsSearching] = useState(false);
   const [showSearchResults, setShowSearchResults] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
-  const [toast, setToast] = useState<Toast | null>(null);
+  const [toast, setToast] = useState<any | null>(null);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -191,7 +191,7 @@ export function NavBar() {
               <motion.img
                 src={LOGO}
                 alt="Logo"
-                className="h-8 w-8 rounded-lg shadow-md"
+                className="h-12 w-12 rounded-lg shadow-md"
                 whileHover={{ rotate: 5 }}
                 transition={{ type: "decay", stiffness: 200 }}
               />
