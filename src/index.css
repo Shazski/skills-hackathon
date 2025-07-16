@@ -215,3 +215,7 @@
 .scrollbar-hide::-webkit-scrollbar {
  display: none; /* Safari and Chrome */
 }
+
+button {
+  cursor: pointer !important;
+}
