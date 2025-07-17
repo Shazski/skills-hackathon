@@ -219,7 +219,7 @@ export function NavBar() {
               </motion.div>
             )} */}
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 md:pr-4">
                 {/* Search Bar */}
               {!isAuthPage && (
                 <motion.div

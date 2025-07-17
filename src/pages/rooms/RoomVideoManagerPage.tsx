@@ -707,10 +707,10 @@ Provide ONLY the item names and descriptions. Do not include explanations or com
   return (
     <>
       {/* Header with back button */}
-      <div className="sticky top-0 z-40 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 px-4 py-3">
+      <div className="sticky top-0 z-40 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 px-4 md:px-12 py-3">
         <div className="flex items-center justify-between">
           <Link to={`/homes/${homeId}`}>
-            <Button variant="ghost" size="sm" className="flex items-center gap-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white cursor-pointer">
+            <Button variant="ghost" size="sm" className="flex items-center !p-0 gap-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white cursor-pointer">
               <ArrowLeft className="w-4 h-4" />
               Back to Rooms
             </Button>
@@ -730,10 +730,10 @@ Provide ONLY the item names and descriptions. Do not include explanations or com
       {/* Main content */}
       <div className="flex flex-col md:flex-row gap-6 md:gap-0 items-start">
         {/* Left: Record/Upload Section */}
-        <div className="left-section w-full md:w-3/4 p-2 md:p-4 flex flex-col gap-4 border-b md:border-b-0 md:border-r border-gray-200 dark:border-gray-700">
+        <div className="left-section w-full md:w-3/4  px-4 md:px-12 pb-20 md:pb-4 pt-6 flex flex-col gap-4 border-b md:border-b-0 md:border-r border-gray-200 dark:border-gray-700">
           <h2 className="text-xl font-bold mb-2 text-gray-900 dark:text-white">Record or Upload Video</h2>
           {/* Live Recording Section */}
-          <div className="mb-4">
+          <div className="mb-4 hidden md:inline">
             <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-2 flex items-center gap-2">
               <Camera className="w-5 h-5" />
               Live Recording
@@ -1135,10 +1135,10 @@ Provide ONLY the item names and descriptions. Do not include explanations or com
             minHeight: '400px'
           }}
         >
-          <div className="sticky top-0 z-30 bg-white dark:bg-gray-900 py-2 shadow-sm border-b border-gray-200 dark:border-gray-700">
-            <h2 className="text-xl ms-2 w-full font-bold text-gray-900 dark:text-white mt-1 mb-1">Room Video Library</h2>
+          <div className="sticky top-0 z-30 h-[5.5rem] shadow-sm">
+            <h2 className="text-xl ms-2 w-full font-bold text-gray-900 dark:text-white mt-1 mb-1 pl-4">Room Video Library</h2>
           </div>
-          <div className="flex-1 overflow-y-auto overflow-x-hidden" style={{ maxHeight: 'calc(100% - 60px)' }}>
+          <div className="flex-1 overflow-y-auto overflow-x-hidden pr-4 md:pr-12" style={{ maxHeight: 'calc(100% - 60px)' }}>
             {/* Show batch analyses first */}
             {batchAnalyses.length > 0 && (
               <div className="flex p-4 flex-col gap-4">
