@@ -1013,12 +1013,12 @@ export const Rooms = () => {
       )}
 
       <motion.div
-        className="relative flex items-center justify-center mb-8"
+        className="relative flex flex-col md:flex-row items-center justify-center gap-4 md:gap-0 mb-8"
         initial={{ opacity: 0, x: -30 }}
         animate={{ opacity: 1, x: 0 }}
         transition={{ duration: 0.5 }}
       >
-        <Link to="/" className="absolute left-0">
+        <Link to="/" className="w-full md:w-auto md:absolute md:left-0">
           <Button variant="ghost" size="sm" className="flex items-center gap-2 cursor-pointer">
             <ArrowLeft className="w-4 h-4" />
             Back to Homes
@@ -1026,7 +1026,7 @@ export const Rooms = () => {
         </Link>
 
         <motion.h1
-          className="text-2xl md:text-3xl font-bold text-gray-800 dark:text-gray-100 text-center"
+          className="text-xl md:text-3xl font-bold text-gray-800 dark:text-gray-100 text-center"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.2 }}

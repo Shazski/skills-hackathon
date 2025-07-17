@@ -697,7 +697,7 @@ Provide ONLY the item names and descriptions. Do not include explanations or com
   // Automatically analyze new videos when added
   // Remove any useEffect that auto-analyzes videos after upload/record
 
-  if (loading) return <div className="p-8">Loading...</div>;
+  if (loading) return <div className="p-8"></div>;
   if (error) return <div className="p-8 text-red-500">{error}</div>;
   if (!room) return <div className="p-8 text-red-500">Room not found.</div>;
 
@@ -1037,7 +1037,7 @@ Provide ONLY the item names and descriptions. Do not include explanations or com
                       </div>
                     )}
                     {/* Per-video AI results (unchanged) */}
-                    {videoAnalysis[video.url] && !analyzingVideos.has(video.url) && batchAnalysisResult.length == 0 (
+                    {videoAnalysis[video.url] && !analyzingVideos.has(video.url) && batchAnalysisResult.length == 0 && (
                       <motion.div className="mt-3 p-4 bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 rounded-lg border border-purple-200 dark:border-purple-700" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
                         <h4 className="text-sm font-semibold text-purple-700 dark:text-purple-300 mb-3 flex items-center gap-2">🤖 AI Analysis Results</h4>
                         <div className="mb-3">
