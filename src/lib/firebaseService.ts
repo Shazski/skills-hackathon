@@ -12,7 +12,7 @@ import {
   getDoc
 } from 'firebase/firestore';
 import type { DocumentData } from 'firebase/firestore';
-import { db } from './firebase';
+import { auth, db } from './firebase';
 import { useLoader } from '@/App';
 
 export interface Room {
@@ -322,7 +322,8 @@ export const createHome = async (homeData: CreateHomeData): Promise<string> => {
 export const getAllHomes = async (): Promise<Home[]> => {
   try {
     const q = query(
-      collection(db, 'homes')
+      collection(db, 'homes'),
+      where('userId', '==', auth.currentUser?.uid),
     );
     
     const querySnapshot = await getDocs(q);
