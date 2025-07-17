@@ -1077,18 +1077,18 @@ Provide ONLY the item names and descriptions. Do not include explanations or com
                       </span>
                     ) : (
                       <>
-                      {[...recordedVideos, ...uploadedVideos].length == 1 ? 'Analyze video' : 'Analyze each video separately'}
+                      {[...recordedVideos, ...uploadedVideos].length == 1 ? 'Analyze video' : 'Analyze Videos Individually'}
                       </>
                     )}
                   </Button>
                 )}
                 {/* Analyze All Videos as One Button */}
-                {([...recordedVideos, ...uploadedVideos].some(v => !videoAnalysis[v.url]) && !isBatchAnalyzing && batchAnalysisResult.length === 0 && analyzingVideos.size === 0) && (
+                {([...recordedVideos, ...uploadedVideos].some(v => !videoAnalysis[v.url]) && !isBatchAnalyzing && batchAnalysisResult.length === 0 && analyzingVideos.size === 0 && [...recordedVideos, ...uploadedVideos].length > 1) && (
                   <Button
                     className="bg-gradient-to-r from-purple-600 to-blue-600 text-white font-semibold py-2 px-6 rounded-md shadow hover:scale-105 transition-all hover:cursor-pointer"
                     onClick={analyzeAllVideosAsBatch}
                   >
-                    Analyze All Videos as One
+                    Analyze All Videos Together
                   </Button>
                 )}
               </div>
@@ -1120,7 +1120,7 @@ Provide ONLY the item names and descriptions. Do not include explanations or com
                 ))}
               </ul>
               {/* Save to Room button for batch */}
-              <Button className="mt-4 bg-gradient-to-r from-green-600 to-blue-600 text-white font-semibold py-2 px-6 rounded-md shadow hover:scale-105 transition-all hover:cursor-pointer justify-end w-100" onClick={saveBatchToRoom} disabled={isProcessing || !room}>
+              <Button className="mt-4 bg-gradient-to-r from-green-600 to-blue-600 text-white font-semibold py-2 px-6 rounded-md shadow hover:scale-105 transition-all hover:cursor-pointer justify-end" onClick={saveBatchToRoom} disabled={isProcessing || !room}>
                 {isProcessing ? 'Saving...' : 'Save to Room'}
               </Button>
             </motion.div>
