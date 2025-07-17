@@ -1056,7 +1056,7 @@ Provide ONLY the item names and descriptions. Do not include explanations or com
               </div>
 
               {/* Analyze Buttons Row */}
-              <div className="flex flex-row gap-3 mb-3 justify-end">
+              <div className="flex flex-col md:flex-row gap-3 mb-3 justify-end">
                 {/* Per-video Analyze Button */}
                 {([...recordedVideos, ...uploadedVideos].some(v => !videoAnalysis[v.url]) && analyzingVideos.size === 0 && !isBatchAnalyzing && batchAnalysisResult.length === 0) && (
                   <Button
