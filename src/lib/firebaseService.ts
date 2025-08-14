@@ -183,14 +183,19 @@ export const updateVideoAnalysisResults = async (
 ): Promise<void> => {
   try {
     const analysisRef = doc(db, 'videoAnalyses', analysisId);
-    await updateDoc(analysisRef, {
+    const updateData: any = {
       items,
       missingItems,
-      cloudinaryUrl,
       status: 'completed',
       completedAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
-    });
+    };
+
+    if (cloudinaryUrl) {
+      updateData.cloudinaryUrl = cloudinaryUrl;
+    }
+
+    await updateDoc(analysisRef, updateData);
   } catch (error) {
     console.error('Error updating video analysis results:', error);
     throw error;

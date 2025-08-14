@@ -16,7 +16,8 @@ import {
   SkipBack,
   SkipForward,
   ArrowLeft,
-  CheckCircle
+  CheckCircle,
+  Eye
 } from 'lucide-react';
 import {
   getHomeById,
@@ -101,6 +102,9 @@ const RoomVideoManagerPage = () => {
   const [showSaveSuccessModal, setShowSaveSuccessModal] = useState(false);
   const [savedVideosCount, setSavedVideosCount] = useState(0);
   const [leftSectionHeight, setLeftSectionHeight] = useState<number>(0);
+  const [videoThumbnails, setVideoThumbnails] = useState<Record<string, string>>({});
+
+
   const [isVideoPlaying, setIsVideoPlaying] = useState<boolean>(false);
   const [isVideoMuted, setIsVideoMuted] = useState<boolean>(true);
   const [videoCurrentTime, setVideoCurrentTime] = useState<number>(0);
@@ -135,6 +139,31 @@ const RoomVideoManagerPage = () => {
     };
     fetchData();
   }, [homeId, roomId]);
+
+  useEffect(() => {
+      if (room?.videos) {
+        for (const videoUrl of room.videos) {
+          if (!videoThumbnails[videoUrl]) {
+            const video = document.createElement('video');
+            video.src = videoUrl;
+            video.crossOrigin = 'anonymous';
+            video.onloadeddata = () => {
+              video.currentTime = 1; // Seek to 1 second
+            };
+            video.onseeked = () => {
+              const canvas = document.createElement('canvas');
+              canvas.width = video.videoWidth;
+              canvas.height = video.videoHeight;
+              const ctx = canvas.getContext('2d');
+              if (ctx) {
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                setVideoThumbnails(prev => ({ ...prev, [videoUrl]: canvas.toDataURL('image/jpeg') }));
+              }
+            };
+          }
+        }
+      }
+  }, [room?.videos]);
 
   useEffect(() => {
     async function fetchAnalyses() {
@@ -337,146 +366,94 @@ const RoomVideoManagerPage = () => {
     return data.secure_url;
   };
 
-  // 2. In analyzeVideoWithAI, upload the video to Cloudinary in parallel with frame extraction
-  const analyzeVideoWithAI = async (videoUrl: string, videoIndex: number, videoFile?: File, cloudinaryUrl?: string) => {
+  const analyzeVideoWithAI = async (videoUrl: string, videoIndex: number, videoFile?: File) => {
     setAnalyzingVideos(prev => new Set(prev).add(videoUrl));
     setVideoProgress(prev => ({ ...prev, [videoUrl]: 5 }));
+    let analysisId = '';
     try {
-      let frameImageUrls: string[] = [];
-      let mainCloudinaryUrl = cloudinaryUrl || videoCloudinaryUrls[videoUrl];
-      // Always await Cloudinary upload for the main video file
-      if (videoFile && !mainCloudinaryUrl) {
-        mainCloudinaryUrl = await uploadToCloudinary(videoFile);
-        setVideoCloudinaryUrls(prev => ({ ...prev, [videoUrl]: mainCloudinaryUrl! }));
+      if (!videoFile) {
+        throw new Error('Video file is missing for analysis.');
       }
-      if (videoFile) {
-        setVideoProgress(prev => ({ ...prev, [videoUrl]: 20 }));
-        const frames = await extractFramesFromVideo(videoFile, 2);
-        for (let i = 0; i < frames.length; i++) {
-          const frameFile = new File([frames[i]], `frame_${i}.jpg`, { type: 'image/jpeg' });
-          const url = await uploadToCloudinary(frameFile);
-          frameImageUrls.push(url);
-          setVideoProgress(prev => ({ ...prev, [videoUrl]: 30 + i * 10 }));
-        }
-      } else {
-        frameImageUrls = [mainCloudinaryUrl || videoUrl];
-        setVideoProgress(prev => ({ ...prev, [videoUrl]: 30 }));
+
+      // Step 1: Upload to Cloudinary and get the permanent URL
+      const permanentUrl = await uploadToCloudinary(videoFile);
+      setVideoCloudinaryUrls(prev => ({ ...prev, [videoUrl]: permanentUrl }));
+      setVideoProgress(prev => ({ ...prev, [videoUrl]: 20 }));
+
+      // Step 2: Create a pending analysis entry in Firebase with the permanent URL
+      analysisId = await createVideoAnalysis(roomId, videoUrl, permanentUrl);
+
+      // Step 3: Extract frames for AI analysis
+      const frames = await extractFramesFromVideo(videoFile, 2);
+      const frameImageUrls = [];
+      for (let i = 0; i < frames.length; i++) {
+        const frameFile = new File([frames[i]], `frame_${i}.jpg`, { type: 'image/jpeg' });
+        const url = await uploadToCloudinary(frameFile);
+        frameImageUrls.push(url);
+        setVideoProgress(prev => ({ ...prev, [videoUrl]: 30 + i * 10 }));
       }
+
+      // Step 4: Perform AI analysis with OpenAI
       const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
       if (!apiKey) throw new Error('OpenAI API key is missing.');
       setVideoProgress(prev => ({ ...prev, [videoUrl]: 60 }));
-      await new Promise(res => setTimeout(res, 1000));
-      setVideoProgress(prev => ({ ...prev, [videoUrl]: 90 }));
+      
       const openaiContent = [
-        {
-          type: 'text',
-          text: 'Please analyze these video frames and list all the items, furniture, appliances, and objects you can see. Focus on items that would be relevant for a home or room analysis.'
-        },
-        ...frameImageUrls.map(url => ({
-          type: 'image_url',
-          image_url: { url }
-        }))
+        { type: 'text', text: 'Please analyze these video frames and list all the items you can see.' },
+        ...frameImageUrls.map(url => ({ type: 'image_url', image_url: { url } }))
       ];
+
       const res = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
+        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
         body: JSON.stringify({
           model: "gpt-4o",
           messages: [
-            {
-              role: "system",
-              content: `You are an expert at analyzing video content and identifying objects, items, and elements present in videos.
-
-Your task is to carefully examine the provided video frames and create a comprehensive, detailed list of ALL visible items, objects, furniture, appliances, decorations, and any other notable elements you can identify.
-
-IMPORTANT GUIDELINES:
-- Be thorough and comprehensive - list everything you can see
-- Include furniture (chairs, tables, beds, sofas, etc.)
-- Include appliances (refrigerators, microwaves, TVs, computers, etc.)
-- Include decorations (paintings, plants, rugs, curtains, etc.)
-- Include electronics and devices
-- Include lighting fixtures and lamps
-- Include storage items (shelves, cabinets, drawers, etc.)
-- Include any visible architectural features
-- Be specific about item types and materials when visible
-- Mention colors and patterns if they help identify items
-- Focus on items relevant for home/room analysis
-
-Format your response as a clean list with each item on a separate line:
-- Specific item name with details
-- Another item with details
-- Continue listing all visible items
-
-Provide ONLY the item names and descriptions. Do not include explanations or commentary.`,
-            },
-            {
-              role: "user",
-              content: openaiContent,
-            },
+            { role: "system", content: "You are an expert at analyzing video content and identifying objects. Format your response as a clean list with each item on a separate line." },
+            { role: "user", content: openaiContent },
           ],
           max_tokens: 1000,
         }),
       });
+
       if (!res.ok) {
         const errorText = await res.text();
         throw new Error(`OpenAI API error: ${res.status} - ${errorText}`);
       }
+
       const data = await res.json();
-      if (data.error) {
-        throw new Error(data.error.message);
-      }
-      const analysisResult = data.choices?.[0]?.message?.content || "No items detected in the video.";
-      const lines = analysisResult.split('\n').filter((line: string) => line.trim());
-      const items: string[] = [];
-      lines.forEach((line: string) => {
-        // Filter out meta/instructional lines and markdown headings
-        const lower = line.toLowerCase();
-        if (
-          lower.includes('here is a list of') ||
-          lower.includes('visible in the frames') ||
-          lower.includes('visible in the video') ||
-          lower.includes('the following items') ||
-          lower.includes('elements present') ||
-          lower.includes('as follows:') ||
-          lower.startsWith('items:') ||
-          lower.startsWith('elements:') ||
-          lower.includes('based on the video frames') ||
-          lower.includes('relevant for a home or room analysis') ||
-          line.trim().match(/^#+\s/) // markdown headings like #, ##, ###, ####
-        ) {
-          return;
-        }
-        if (line.includes('-') || line.includes('•') || line.includes('*')) {
-          const item = line.replace(/^[-•*]\s*/, '').trim();
-          if (item) items.push(item);
-        } else if (line.match(/^\d+\./)) {
-          const item = line.replace(/^\d+\.\s*/, '').trim();
-          if (item) items.push(item);
-        } else if (line.trim() && !line.toLowerCase().includes('difference') && !line.toLowerCase().includes('image')) {
-          items.push(line.trim());
-        }
-      });
-      const analysisData: VideoAnalysisResult = { items, missingItems: [] };
-      setVideoAnalysis(prev => ({ ...prev, [videoUrl]: analysisData }));
+      const analysisResult = data.choices?.[0]?.message?.content || "";
+      const items = analysisResult.split('\n').map((s: string) => s.replace(/^[-•*]\s*/, '').trim()).filter(Boolean);
+      
+      setVideoProgress(prev => ({ ...prev, [videoUrl]: 95 }));
+
+      // Step 5: Update the analysis entry with results
+      await updateVideoAnalysisResults(analysisId, items, [], permanentUrl);
+
+      setVideoAnalysis(prev => ({ ...prev, [videoUrl]: { items, missingItems: [] } }));
       setVideoProgress(prev => ({ ...prev, [videoUrl]: 100 }));
-      setTimeout(() => setVideoProgress(prev => { const { [videoUrl]: _, ...rest } = prev; return rest; }), 1000);
-      if (room) {
-        if (mainCloudinaryUrl) {
-          const firebaseAnalysisId = await createVideoAnalysis(room.id, videoUrl, mainCloudinaryUrl);
-          await updateVideoAnalysisResults(firebaseAnalysisId, analysisData.items, [], mainCloudinaryUrl);
-        } else {
-          const firebaseAnalysisId = await createVideoAnalysis(room.id, videoUrl);
-          await updateVideoAnalysisResults(firebaseAnalysisId, analysisData.items, []);
-        }
+
+      // Add to room analyses state to update UI
+      const newAnalysisData = await getCompletedAnalysesByRoomId(roomId);
+      const newAnalysis = newAnalysisData.find(a => a.id === analysisId);
+      if (newAnalysis) {
+        setRoomAnalyses(prev => ({ ...prev, [videoUrl]: newAnalysis }));
       }
+
     } catch (err) {
-      setError('Failed to analyze video.');
+      console.error('Error analyzing video:', err);
+      setError(`Failed to analyze video: ${err instanceof Error ? err.message : 'Unknown error'}`);
       setVideoProgress(prev => ({ ...prev, [videoUrl]: 0 }));
+      // Optionally, delete the pending analysis if it failed
+      if (analysisId) {
+        // await deleteVideoAnalysis(analysisId); // You would need to implement this
+      }
     } finally {
-      setAnalyzingVideos(prev => { const s = new Set(prev); s.delete(videoUrl); return s; });
+      setAnalyzingVideos(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(videoUrl);
+        return newSet;
+      });
     }
   };
 
@@ -724,6 +701,12 @@ Provide ONLY the item names and descriptions. Do not include explanations or com
               <p className="text-sm text-gray-600 dark:text-gray-400">{room?.description}</p>
             </div>
           </div>
+          <Link to={`/homes/${homeId}/rooms/${roomId}/inspection`}>
+            <Button variant="outline" size="sm" className="flex items-center gap-2">
+              <Eye className="w-4 h-4" />
+              Start Inspection
+            </Button>
+          </Link>
         </div>
       </div>
 
@@ -1064,7 +1047,7 @@ Provide ONLY the item names and descriptions. Do not include explanations or com
                     onClick={async () => {
                       await Promise.all(
                         [...recordedVideos, ...uploadedVideos].map((video, index) =>
-                          !videoAnalysis[video.url] ? analyzeVideoWithAI(video.url, index, video.file, undefined) : null
+                          !videoAnalysis[video.url] ? analyzeVideoWithAI(video.url, index, video.file) : null
                         )
                       );
                     }}
@@ -1213,6 +1196,9 @@ Provide ONLY the item names and descriptions. Do not include explanations or com
                       <div className="relative w-full h-32 rounded-lg border border-gray-100 dark:border-gray-800 overflow-hidden group">
                         <video
                           ref={(el) => { videoRefs.current[videoUrl] = el; }}
+                          poster={videoThumbnails[videoUrl]}
+
+
                           src={videoUrl}
                           className="w-full h-32 object-cover"
                           controls={playingVideo === videoUrl}
