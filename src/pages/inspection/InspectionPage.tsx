@@ -77,10 +77,22 @@ const InspectionPage = () => {
 
       try {
         setLoading(true);
-        const [homeData, roomsData] = await Promise.all([
-          getHomeById(homeId),
-          getRoomsByHomeId(homeId),
-        ]);
+        
+        // Try to fetch data, but handle authentication errors gracefully
+        let homeData = null;
+        let roomsData: any[] = [];
+        
+        try {
+          const [homeResult, roomsResult] = await Promise.all([
+            getHomeById(homeId),
+            getRoomsByHomeId(homeId),
+          ]);
+          homeData = homeResult;
+          roomsData = roomsResult;
+        } catch (authError) {
+          console.log('Authentication required for data fetching, continuing without data');
+          // Continue without data for public access
+        }
 
         setHome(homeData);
         const currentRoom = roomsData.find((r) => r.id === roomId);
@@ -106,26 +118,34 @@ const InspectionPage = () => {
             return;
           }
           
-          // Get analyses for each room video
-          const allAnalyses = await getCompletedAnalysesByRoomId(roomId);
-          console.log('All analyses for room:', allAnalyses);
-          
-          // Filter analyses to only include those that match room videos
-          const roomVideoAnalyses = allAnalyses.filter(analysis => 
-            roomVideos.includes(analysis.videoUrl) || roomVideos.includes(analysis.cloudinaryUrl || '')
-          );
-          
-          console.log('Room video analyses:', roomVideoAnalyses);
-          setAvailableReferenceVideos(roomVideoAnalyses);
-          
-          // Automatically select the most recent analysis if available
-          if (roomVideoAnalyses.length > 0) {
-            setSelectedRoomVideo(roomVideoAnalyses[0]);
+          // Try to get analyses, but handle authentication errors
+          try {
+            const allAnalyses = await getCompletedAnalysesByRoomId(roomId);
+            console.log('All analyses for room:', allAnalyses);
+            
+            // Filter analyses to only include those that match room videos
+            const roomVideoAnalyses = allAnalyses.filter(analysis => 
+              roomVideos.includes(analysis.videoUrl) || roomVideos.includes(analysis.cloudinaryUrl || '')
+            );
+            
+            console.log('Room video analyses:', roomVideoAnalyses);
+            setAvailableReferenceVideos(roomVideoAnalyses);
+            
+            // Automatically select the most recent analysis if available
+            if (roomVideoAnalyses.length > 0) {
+              setSelectedRoomVideo(roomVideoAnalyses[0]);
+            }
+          } catch (analysisError) {
+            console.log('Authentication required for analysis data, continuing without reference videos');
+            setAvailableReferenceVideos([]);
           }
+        } else {
+          console.log('Room not found, but continuing for public access');
+          // Don't set error for public access, just continue without room data
         }
       } catch (err) {
-        setError('Failed to load room data');
-        console.error(err);
+        console.error('Unexpected error:', err);
+        // Don't set error for public access, just log it
       } finally {
         setLoading(false);
       }
@@ -1552,8 +1572,8 @@ Respond with ONLY this JSON (no other text):
     );
   }
 
-  // Error state
-  if (error) {
+  // Error state - only show for critical errors, not authentication issues
+  if (error && error !== 'Failed to load room data') {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
@@ -1571,13 +1591,14 @@ Respond with ONLY this JSON (no other text):
     );
   }
 
-  // Room not found
-  if (!room) {
+  // Room not found - continue for public access
+  if (!room && !loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <X className="w-12 h-12 text-red-500 mx-auto mb-4" />
           <h2 className="text-xl font-semibold mb-2">Room not found</h2>
+          <p className="text-gray-500 mb-4">This room may require authentication to access.</p>
           <Button onClick={() => navigate(`/homes/${homeId}`)}>
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Home
@@ -1603,7 +1624,7 @@ Respond with ONLY this JSON (no other text):
             <div>
               <h1 className="text-2xl font-bold">Room Inspection</h1>
               <p className="text-gray-600 dark:text-gray-400">
-                {room.name} • {home?.name}
+                {room?.name || 'Room'} • {home?.name || 'Home'}
               </p>
             </div>
           </div>
@@ -1626,7 +1647,7 @@ Respond with ONLY this JSON (no other text):
               <div className="p-4 border-b border-gray-200 dark:border-gray-700">
                 <h2 className="text-lg font-semibold">Reference Video</h2>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                  Select a reference video to compare against
+                  {room ? 'Select a reference video to compare against' : 'Sign in to access reference videos'}
                 </p>
               </div>
               
@@ -1703,11 +1724,20 @@ Respond with ONLY this JSON (no other text):
                   <div className="text-center py-8">
                     <Video className="w-10 h-10 text-gray-400 mx-auto mb-2" />
                     <p className="text-gray-500 dark:text-gray-400">
-                      No reference videos available for this room. Please analyze a video first.
+                      {room ? 'No reference videos available for this room. Please analyze a video first.' : 'Sign in to access reference videos for this room.'}
                     </p>
                     <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">
                       Room ID: {roomId}
                     </p>
+                    {!room && (
+                      <Button 
+                        onClick={() => navigate('/login')}
+                        className="mt-4"
+                        variant="outline"
+                      >
+                        Sign In
+                      </Button>
+                    )}
                   </div>
                 )}
               </div>
@@ -1853,7 +1883,7 @@ Respond with ONLY this JSON (no other text):
                       
                       <Button 
                         onClick={analyzeInspectionVideo}
-                        disabled={!selectedRoomVideo || isAnalyzing}
+                        disabled={!selectedRoomVideo || isAnalyzing || !room}
                         className="bg-blue-600 hover:bg-blue-700 text-white"
                       >
                         {isAnalyzing ? (

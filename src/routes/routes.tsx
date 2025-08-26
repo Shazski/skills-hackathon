@@ -18,8 +18,8 @@ export const router = createBrowserRouter([
     children: [
       { path: "login", element: <Login /> },
       { path: "signup", element: <SignUp /> },
-
       { path: "homes/:homeId/rooms/:roomId/inspection", element: <InspectionPage /> },
+      
       // ✅ Protected routes (including Home)
       {
         element: <ProtectedRoute />,
