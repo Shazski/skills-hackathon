@@ -159,15 +159,21 @@ export const createVideoAnalysis = async (
   cloudinaryUrl?: string
 ): Promise<string> => {
   try {
-    const docRef = await addDoc(collection(db, 'videoAnalyses'), {
+    const docData: any = {
       roomId,
       videoUrl,
-      cloudinaryUrl,
       items: [],
       missingItems: [],
       status: 'pending',
       createdAt: serverTimestamp(),
-    });
+    };
+
+    // Only add cloudinaryUrl if it's provided and not undefined
+    if (cloudinaryUrl) {
+      docData.cloudinaryUrl = cloudinaryUrl;
+    }
+
+    const docRef = await addDoc(collection(db, 'videoAnalyses'), docData);
     return docRef.id;
   } catch (error) {
     console.error('Error creating video analysis:', error);

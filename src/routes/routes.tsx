@@ -8,7 +8,7 @@ import { Rooms } from "@/pages/rooms/page";
 import VideoAnalysisPage from "@/pages/video-analysis/page";
 import ComparisonPage from "@/pages/comparison/page";
 import RoomVideoManagerPage from '@/pages/rooms/RoomVideoManagerPage';
-import InspectionPage from '@/pages/inspection/page';
+import InspectionPage from '@/pages/inspection/InspectionPage';
 import { ProtectedRoute } from "@/components/ProtectedRoute"
 
 export const router = createBrowserRouter([
