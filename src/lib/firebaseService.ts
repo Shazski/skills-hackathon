@@ -481,3 +481,19 @@ export const deleteVideoAnalysis = async (analysisId: string): Promise<void> => 
     throw error;
   }
 }; 
+
+export const createBatchVideoInspectionAnalysis = async (
+  homeId: string,
+  roomId: string,
+  videoURLs: string[] // now array
+) => {
+  const docRef = await addDoc(collection(db, "batchVideoAnalyses"), {
+    homeId,
+    roomId,
+    videoURL: videoURLs,
+    detectedItem: [], 
+    createdOn: serverTimestamp(),
+  });
+
+  return docRef.id;
+};

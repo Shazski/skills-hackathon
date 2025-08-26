@@ -17,6 +17,9 @@ import {
   CheckCircle,
   X,
   Eye,
+  Pause,
+  Play,
+  Square
 } from 'lucide-react';
 import {
   getHomeById,
@@ -24,6 +27,7 @@ import {
   getCompletedAnalysesByRoomId,
   createVideoAnalysis,
   updateVideoAnalysisResults,
+  createBatchVideoInspectionAnalysis
 } from '../../lib/firebaseService';
 import type { VideoAnalysis, Room, Home } from '../../lib/firebaseService';
 
@@ -48,6 +52,11 @@ const InspectionPage = () => {
   const [comparisonResult, setComparisonResult] = useState<ComparisonResult | null>(null);
   const [selectedRoomVideo, setSelectedRoomVideo] = useState<VideoAnalysis | null>(null);
   const [inspectionAnalysis, setInspectionAnalysis] = useState<string[] | null>(null);
+  const [recordings, setRecordings] = useState<{ url: string; file: File; createdAt: Date }[]>([]);
+  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
+  const [isPaused, setIsPaused] = useState<boolean>(false);
+
+
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const roomVideoRef = useRef<HTMLVideoElement>(null);
@@ -126,6 +135,28 @@ const InspectionPage = () => {
     };
   }, [homeId, roomId]);
 
+  useEffect(() => {
+    if (isRecording && videoRef.current) {
+      navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+        .then((stream) => {
+          videoRef.current!.srcObject = stream;
+          videoRef.current!.play().catch((err) => console.error("Autoplay failed:", err));
+        })
+        .catch((err) => {
+          console.error("Camera error:", err);
+          setError("Failed to access camera");
+        });
+    }
+  }, [isRecording]);
+
+  useEffect(() => {
+    console.log("navigator:", navigator);
+    console.log("UserAgent:", navigator.userAgent);
+    console.log("Platform:", navigator.platform);
+    console.log("maxTouchPoints:", navigator.maxTouchPoints);
+    console.log("isIOS():", isIOS());
+  }, []);
+
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
@@ -136,9 +167,11 @@ const InspectionPage = () => {
       setInspectionAnalysis(null);
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
+        videoRef.current.play().catch((err) => console.error("Autoplay failed:", err));
       }
 
       const supportedMimeTypes = [
+        'video/mp4; codecs="avc1.42E01E"',
         'video/mp4; codecs=avc1',
         'video/webm; codecs=vp9',
         'video/webm; codecs=vp8',
@@ -165,9 +198,23 @@ const InspectionPage = () => {
         chunksRef.current = [];
         const videoUrl = URL.createObjectURL(blob);
         const fileExtension = supportedMimeType.startsWith('video/mp4') ? 'mp4' : 'webm';
-        setInspectionVideo(videoUrl);
-        setInspectionFile(new File([blob], `inspection.${fileExtension}`, { type: supportedMimeType }));
+
+        const newFile = new File([blob], `inspection.${fileExtension}`, { type: supportedMimeType });
+
+        // Save to recordings array
+        setRecordings((prev) => [...prev, { url: videoUrl, file: newFile, createdAt: new Date() }]);
+
+        if (videoRef.current) {
+          videoRef.current.srcObject = null;
+          videoRef.current.src = videoUrl;
+        }
+
+        // setInspectionVideo(videoUrl);
+        // setInspectionFile(new File([blob], `inspection.${fileExtension}`, { type: supportedMimeType }));
+        setInspectionVideo(null);
+        setInspectionFile(null);
         stream.getTracks().forEach((track) => track.stop());
+        // setCameraStream(null);
       };
 
       mediaRecorder.start();
@@ -182,13 +229,33 @@ const InspectionPage = () => {
       mediaRecorderRef.current.stop();
       setIsRecording(false);
     }
+
+    const stream = videoRef.current?.srcObject as MediaStream;
+    stream?.getTracks().forEach((track: MediaStreamTrack) => track.stop());
+    if (videoRef.current) videoRef.current.srcObject = null;
+  };
+
+  const pauseRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+      mediaRecorderRef.current.pause();
+      setIsPaused(true);
+    }
+  };
+
+  const resumeRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === "paused") {
+      mediaRecorderRef.current.resume();
+      setIsPaused(false);
+    }
   };
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
       const videoUrl = URL.createObjectURL(file);
-      setInspectionVideo(videoUrl);
+      // Save to recordings list as well
+      setRecordings((prev) => [...prev, { url: videoUrl, file, createdAt: new Date() }]);
+      // setInspectionVideo(videoUrl);
       setInspectionFile(file);
       setComparisonResult(null);
       setInspectionAnalysis(null);
@@ -196,40 +263,68 @@ const InspectionPage = () => {
   };
 
   const analyzeInspectionVideo = async () => {
-    if (!inspectionFile || !roomId) return;
+    if (recordings.length === 0  || !roomId) return; //!inspectionFile ||
 
     setIsAnalyzing(true);
     setComparisonResult(null);
     setInspectionAnalysis(null);
 
     try {
-      const analysisId = await createVideoAnalysis(roomId, 'temp-url');
+      if (!homeId || !roomId) {
+        setError("Missing homeId or roomId");
+        return;
+      }
+      const uploadPromises = recordings.map(rec => uploadToCloudinary(rec.file));
+      const uploadedUrls = await Promise.all(uploadPromises);
 
-      setTimeout(async () => {
-        const mockItems = ['Sofa', 'Table', 'Lamp', 'Rug', 'TV', 'Chair', 'Bookshelf'];
-        const detectedItems = mockItems.filter(() => Math.random() > 0.3);
-        setInspectionAnalysis(detectedItems);
+      const analysisId = await createBatchVideoInspectionAnalysis(homeId, roomId, uploadedUrls);
 
-        if (selectedRoomVideo && Array.isArray(selectedRoomVideo.items)) {
-          const baseItems = selectedRoomVideo.items;
-          const newItems = detectedItems.filter((item) => !baseItems.includes(item));
-          const missingItems = baseItems.filter((item) => !detectedItems.includes(item));
-          const commonItems = baseItems.filter((item) => detectedItems.includes(item));
+      // const analysisId = await createVideoAnalysis(roomId, 'temp-url');
 
-          setComparisonResult({ newItems, missingItems, commonItems });
-          await updateVideoAnalysisResults(analysisId, detectedItems, missingItems);
-        } else {
-          setComparisonResult({ newItems: detectedItems, missingItems: [], commonItems: [] });
-          await updateVideoAnalysisResults(analysisId, detectedItems, []);
-        }
+      // setTimeout(async () => {
+      //   const mockItems = ['Sofa', 'Table', 'Lamp', 'Rug', 'TV', 'Chair', 'Bookshelf'];
+      //   const detectedItems = mockItems.filter(() => Math.random() > 0.3);
+      //   setInspectionAnalysis(detectedItems);
 
-        setIsAnalyzing(false);
-      }, 3000);
+      //   if (selectedRoomVideo && Array.isArray(selectedRoomVideo.items)) {
+      //     const baseItems = selectedRoomVideo.items;
+      //     const newItems = detectedItems.filter((item) => !baseItems.includes(item));
+      //     const missingItems = baseItems.filter((item) => !detectedItems.includes(item));
+      //     const commonItems = baseItems.filter((item) => detectedItems.includes(item));
+
+      //     setComparisonResult({ newItems, missingItems, commonItems });
+      //     await updateVideoAnalysisResults(analysisId, detectedItems, missingItems);
+      //   } else {
+      //     setComparisonResult({ newItems: detectedItems, missingItems: [], commonItems: [] });
+      //     await updateVideoAnalysisResults(analysisId, detectedItems, []);
+      //   }
+
+      //   setIsAnalyzing(false);
+      // }, 3000);
     } catch (err) {
       setError('Failed to analyze video.');
       console.error(err);
       setIsAnalyzing(false);
     }
+  };
+
+  const uploadToCloudinary = async (file: File): Promise<string> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('upload_preset', import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET || 'ml_default');
+    formData.append('cloud_name', import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || 'your-cloud-name');
+
+    const response = await fetch(`https://api.cloudinary.com/v1_1/${import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || 'your-cloud-name'}/video/upload`, {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to upload to Cloudinary');
+    }
+
+    const data = await response.json();
+    return data.secure_url;
   };
 
   const clearInspection = () => {
@@ -240,6 +335,11 @@ const InspectionPage = () => {
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
+  };
+
+  const isIOS = () => {
+    if (typeof navigator === "undefined") return false;
+    return /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
   };
 
   if (loading) return <div className="p-8"><div className="flex items-center justify-center h-screen"><div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-blue-500"></div></div></div>;
@@ -289,7 +389,7 @@ const InspectionPage = () => {
            )}
          </div>
          <div className="mt-4">
-           <h3 className="font-semibold mb-2">Available Reference Videos</h3>
+           <h3 className="font-semibold mb-2">Reference Video(s)</h3>
            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
              {availableReferenceVideos.map((video) => (
                <div
@@ -300,7 +400,7 @@ const InspectionPage = () => {
                    setRoomVideoAnalysis(video);
                  }}
                >
-                 <video src={video.videoUrl} className="w-full h-24 object-cover" />
+                 <video src={video.cloudinaryUrl} className="w-full h-24 object-cover" />
                  <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-xs p-1">
                    {new Date(video.createdAt.toMillis()).toLocaleString()}
                  </div>
@@ -322,22 +422,113 @@ const InspectionPage = () => {
                 <p>Upload or record a video</p>
               )}
             </div>
-            <div className="flex gap-4">
+            {/* <div className="flex gap-4">
               <Button onClick={() => fileInputRef.current?.click()} className="flex-1">
                 <Upload className="w-4 h-4 mr-2" /> Upload
               </Button>
               <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept="video/*" className="hidden" />
+
               {isRecording ? (
-                <Button onClick={stopRecording} className="flex-1 bg-red-600 hover:bg-red-700">
-                  <X className="w-4 h-4 mr-2" /> Stop Recording
-                </Button>
+                <>
+                  {isPaused ? (
+                    <Button onClick={resumeRecording} className="flex-1 bg-yellow-600 hover:bg-yellow-700">
+                      <Play className="w-4 h-4 mr-2" /> Resume
+                    </Button>
+                  ) : (
+                    <Button onClick={pauseRecording} className="flex-1 bg-yellow-600 hover:bg-yellow-700">
+                      <Pause className="w-4 h-4 mr-2" /> Pause
+                    </Button>
+                  )}
+                  <Button onClick={stopRecording} className="flex-1 bg-red-600 hover:bg-red-700">
+                    <Square className="w-4 h-4 mr-2" /> Stop Recording
+                  </Button>
+                </>
               ) : (
                 <Button onClick={startRecording} className="flex-1">
                   <Camera className="w-4 h-4 mr-2" /> Record
                 </Button>
               )}
+            </div> */}
+            <div className="flex gap-4">
+              <Button onClick={() => fileInputRef.current?.click()} className="flex-1">
+                <Upload className="w-4 h-4 mr-2" /> Upload
+              </Button>
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileUpload}
+                accept="video/*"
+                className="hidden"
+              />
+
+              {isIOS() ? (
+                // iOS Fallback: use native camera app
+                <>
+                  <input
+                    type="file"
+                    accept="video/*"
+                    capture="environment"   // opens back camera directly
+                    onChange={handleFileUpload}
+                    className="hidden"
+                    id="iosVideoCapture"
+                  />
+                  <label htmlFor="iosVideoCapture" className="flex-1">
+                    <Button className="w-full">
+                      <Camera className="w-4 h-4 mr-2" /> Record (iOS Camera)
+                    </Button>
+                  </label>
+                </>
+              ) : (
+                // Default: MediaRecorder for desktop & Android
+                <>
+                  {isRecording ? (
+                    <>
+                      {isPaused ? (
+                        <Button
+                          onClick={resumeRecording}
+                          className="flex-1 bg-yellow-600 hover:bg-yellow-700"
+                        >
+                          <Play className="w-4 h-4 mr-2" /> Resume
+                        </Button>
+                      ) : (
+                        <Button
+                          onClick={pauseRecording}
+                          className="flex-1 bg-yellow-600 hover:bg-yellow-700"
+                        >
+                          <Pause className="w-4 h-4 mr-2" /> Pause
+                        </Button>
+                      )}
+                      <Button
+                        onClick={stopRecording}
+                        className="flex-1 bg-red-600 hover:bg-red-700"
+                      >
+                        <X className="w-4 h-4 mr-2" /> Stop
+                      </Button>
+                    </>
+                  ) : (
+                    <Button onClick={startRecording} className="flex-1">
+                      <Camera className="w-4 h-4 mr-2" /> Record
+                    </Button>
+                  )}
+                </>
+              )}
             </div>
           </div>
+          {recordings.length > 0 && (
+            <div className="mt-6">
+              <h3 className="font-semibold mb-2">Inspection Videos</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {recordings.map((rec, idx) => (
+                  <div key={idx} className="bg-gray-100 dark:bg-gray-700 rounded-lg p-2">
+                    <video src={rec.url} controls className="w-full h-40 object-cover rounded-md" />
+                    <p className="text-xs text-gray-500 mt-1">
+                      {rec.file.name} — {rec.createdAt.toLocaleTimeString()}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </motion.div>
 
         <motion.div className="lg:col-span-2" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.2 }}>
@@ -348,7 +539,7 @@ const InspectionPage = () => {
                   <div className="inline-block">
                     <Button 
                       onClick={analyzeInspectionVideo} 
-                      disabled={!inspectionFile || isAnalyzing || !selectedRoomVideo}
+                      disabled={recordings.length === 0 || isAnalyzing || !selectedRoomVideo}
                       className="w-64 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold flex items-center gap-2"
                     >
                       {isAnalyzing ? 'Analyzing...' : 'Analyze & Compare'}
