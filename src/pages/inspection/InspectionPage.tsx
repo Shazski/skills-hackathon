@@ -81,7 +81,9 @@ const InspectionPage = () => {
         setRoom(currentRoom || null);
 
         if (currentRoom) {
+          console.log('Fetching analyses for roomId:', roomId);
           const analyses = await getCompletedAnalysesByRoomId(roomId);
+          console.log('Found analyses:', analyses);
           setAvailableReferenceVideos(analyses);
           
           // Automatically select the most recent analysis if available
@@ -654,6 +656,13 @@ Format your response as a clean list with each item clearly described.`
               </p>
             </div>
           )}
+          
+          {/* Debug Info - Remove this in production */}
+          <div className="bg-gray-50 dark:bg-gray-800/20 px-4 py-2 rounded-lg text-xs">
+            <p className="text-gray-600 dark:text-gray-400">
+              Room ID: {roomId} | Videos found: {availableReferenceVideos.length}
+            </p>
+          </div>
         </div>
 
         {/* Main Content */}
@@ -670,7 +679,7 @@ Format your response as a clean list with each item clearly described.`
               
               <div className="p-4">
                 {availableReferenceVideos.length > 0 ? (
-                  <div className="space-y-2">
+                  <div className="space-y-4">
                     {availableReferenceVideos.map((video) => (
                       <div 
                         key={video.id}
@@ -683,7 +692,7 @@ Format your response as a clean list with each item clearly described.`
                           setSelectedRoomVideo(video);
                         }}
                       >
-                        <div className="flex items-center">
+                        <div className="flex items-center mb-2">
                           <Video className="w-5 h-5 text-blue-500 mr-3" />
                           <div>
                             <p className="font-medium">
@@ -694,6 +703,18 @@ Format your response as a clean list with each item clearly described.`
                             </p>
                           </div>
                         </div>
+                        
+                        {/* Video Preview */}
+                        {selectedRoomVideo?.id === video.id && video.cloudinaryUrl && (
+                          <div className="mt-3">
+                            <video
+                              src={video.cloudinaryUrl}
+                              className="w-full h-32 object-cover rounded-lg"
+                              controls
+                              preload="metadata"
+                            />
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -701,7 +722,10 @@ Format your response as a clean list with each item clearly described.`
                   <div className="text-center py-8">
                     <Video className="w-10 h-10 text-gray-400 mx-auto mb-2" />
                     <p className="text-gray-500 dark:text-gray-400">
-                      No reference videos available. Please analyze a video first.
+                      No reference videos available for this room. Please analyze a video first.
+                    </p>
+                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">
+                      Room ID: {roomId}
                     </p>
                   </div>
                 )}
