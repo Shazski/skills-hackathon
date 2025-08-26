@@ -446,7 +446,7 @@ const InspectionPage = () => {
         video: { 
           width: { ideal: 1280 },
           height: { ideal: 720 },
-          facingMode: 'user' // Use front camera
+          facingMode: 'environment' // Use front camera
         } 
       });
       
@@ -1686,7 +1686,7 @@ Respond with ONLY this JSON (no other text):
                           <div className="mt-3">
                             <video
                               src={video.cloudinaryUrl}
-                              className="w-full h-32 object-cover rounded-lg"
+                              className="w-full h-32 rounded-lg"
                               controls
                               preload="metadata"
                               playsInline
@@ -1757,48 +1757,31 @@ Respond with ONLY this JSON (no other text):
               <div className="p-4">
                                 {/* Show live preview during recording */}
                 {isRecording && (
-                  <>
-                    {/* Video element will be created programmatically in startRecording */}
-                    <>
-                      {/* Fallback message if camera not ready */}
-                      {/* {!cameraReady && (
-                        <div className="absolute inset-0 flex items-center justify-center bg-black/50 text-white">
-                          <div className="text-center">
-                            <div className="animate-spin rounded-full h-8 w-8 border-2 border-white border-t-transparent mx-auto mb-2"></div>
-                            <p>Initializing camera...</p>
-                          </div>
-                        </div>
-                      )} */}
-                      
-                      {/* REC indicator */}
-                      {/* <div className="absolute top-4 right-4 bg-red-600 text-white px-3 py-1 rounded-full text-sm font-medium flex items-center">
-                        <div className="w-2 h-2 bg-white rounded-full mr-2 animate-pulse"></div>
-                        REC
-                      </div> */}
-                      
-                      {/* Camera switch button for mobile */}
-                      <div className="absolute top-4 left-4">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={switchCamera}
-                          className="bg-black/70 text-white border-white/20 hover:bg-black/90"
-                          title={`Switch to ${currentCameraMode === 'user' ? 'back' : 'front'} camera`}
-                        >
-                          <Camera className="w-4 h-4 mr-1" />
-                          {currentCameraMode === 'user' ? 'Back' : 'Front'}
-                        </Button>
-                      </div>
-                      
-                      {/* Debug info */}
-                      {/* <div className="absolute bottom-4 left-4 bg-black/70 text-white px-3 py-1 rounded text-xs">
-                        Camera: {cameraReady ? 'Ready' : 'Loading...'} | 
-                        Mode: {currentCameraMode === 'user' ? 'Front' : 'Back'} |
-                        State: {livePreviewRef.current?.readyState === 4 ? 'Ready' : livePreviewRef.current?.readyState || 'Unknown'} |
-                        Stream: {livePreviewRef.current?.srcObject ? 'Yes' : 'No'} |
-                        Paused: {livePreviewRef.current?.paused ? 'Yes' : 'No'}
-                      </div> */}
-                    </>
+                  <div className="space-y-4">
+                    {/* <video
+                      ref={livePreviewRef}
+                      autoPlay
+                      muted
+                      playsInline
+                      className="w-full rounded-lg"
+                      style={{ transform: 'scaleX(-1)' }}
+                      onLoadedMetadata={() => {
+                        console.log('Live video metadata loaded');
+                        setCameraReady(true);
+                      }}
+                      onCanPlay={() => {
+                        console.log('Live video can play');
+                        setCameraReady(true);
+                      }}
+                      onPlay={() => {
+                        console.log('Live video playing');
+                        setCameraReady(true);
+                      }}
+                      onError={(e) => {
+                        console.error('Live video error:', e);
+                        setCameraReady(false);
+                      }}
+                    /> */}
                     
                     <div className="flex justify-center gap-3">
                         <Button 
@@ -1841,35 +1824,33 @@ Respond with ONLY this JSON (no other text):
                           </Button>
                         )}
                       </div>
-                    </>
+                    </div>
                 )}
                 
                 {/* Show recorded video after recording */}
                 {inspectionVideo && !isRecording ? (
                   <div className="space-y-4">
-                    <div className="relative aspect-video bg-black rounded-lg overflow-hidden">
-                      <video
-                        ref={videoRef}
-                        src={inspectionVideo}
-                        controls
-                        className="w-full h-full object-cover"
-                        data-video-type="recorded"
-                        playsInline
-                        onLoadedMetadata={(e) => {
-                          const videoElement = e.currentTarget;
-                          // Set mobile-specific attributes programmatically
-                          videoElement.setAttribute('webkit-playsinline', 'true');
-                          videoElement.setAttribute('x5-playsinline', 'true');
-                          videoElement.setAttribute('x5-video-player-type', 'h5');
-                          videoElement.setAttribute('x5-video-player-fullscreen', 'true');
-                        }}
-                        onClick={() => {
-                          if (videoRef.current) {
-                            playVideoOnMobile(videoRef.current);
-                          }
-                        }}
-                      />
-                    </div>
+                    <video
+                      ref={videoRef}
+                      src={inspectionVideo}
+                      controls
+                      className="w-full rounded-lg"
+                      data-video-type="recorded"
+                      playsInline
+                      onLoadedMetadata={(e) => {
+                        const videoElement = e.currentTarget;
+                        // Set mobile-specific attributes programmatically
+                        videoElement.setAttribute('webkit-playsinline', 'true');
+                        videoElement.setAttribute('x5-playsinline', 'true');
+                        videoElement.setAttribute('x5-video-player-type', 'h5');
+                        videoElement.setAttribute('x5-video-player-fullscreen', 'true');
+                      }}
+                      onClick={() => {
+                        if (videoRef.current) {
+                          playVideoOnMobile(videoRef.current);
+                        }
+                      }}
+                    />
                     
                     <div className="flex flex-wrap gap-3">
                       <Button 
