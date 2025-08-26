@@ -222,22 +222,64 @@ const InspectionPage = () => {
     return false;
   };
 
+  // Mobile video play function
+  const playVideoOnMobile = async (videoElement: HTMLVideoElement) => {
+    try {
+      console.log('Attempting to play video on mobile...');
+      
+      // Set mobile-specific attributes
+      videoElement.setAttribute('webkit-playsinline', 'true');
+      videoElement.setAttribute('x5-playsinline', 'true');
+      videoElement.setAttribute('x5-video-player-type', 'h5');
+      videoElement.setAttribute('x5-video-player-fullscreen', 'true');
+      videoElement.playsInline = true;
+      
+      // Try to play
+      await videoElement.play();
+      console.log('Mobile video play successful');
+      return true;
+    } catch (error) {
+      console.error('Mobile video play failed:', error);
+      
+      // Fallback: try with user interaction
+      videoElement.addEventListener('click', async () => {
+        try {
+          await videoElement.play();
+          console.log('Mobile video play successful after click');
+        } catch (clickError) {
+          console.error('Mobile video play failed after click:', clickError);
+        }
+      }, { once: true });
+      
+      return false;
+    }
+  };
+
   // Switch camera function for mobile devices
   const switchCamera = async () => {
     try {
       console.log('Switching camera...');
       
-      if (!mediaRecorderRef.current?.stream) {
+      // Get current stream from video element instead of media recorder
+      const currentStream = livePreviewRef.current?.srcObject as MediaStream;
+      if (!currentStream) {
         console.log('No active stream to switch');
         return;
       }
       
       // Stop current stream
-      const currentStream = mediaRecorderRef.current.stream;
-      currentStream.getTracks().forEach(track => track.stop());
+      currentStream.getTracks().forEach(track => {
+        console.log('Stopping track:', track.kind, track.label);
+        track.stop();
+      });
       
       // Determine current facing mode and switch
       const currentVideoTrack = currentStream.getVideoTracks()[0];
+      if (!currentVideoTrack) {
+        console.log('No video track found');
+        return;
+      }
+      
       const currentFacingMode = currentVideoTrack.getSettings().facingMode;
       const newFacingMode = currentFacingMode === 'user' ? 'environment' : 'user';
       
@@ -255,14 +297,67 @@ const InspectionPage = () => {
         }
       });
       
+      console.log('New stream obtained:', newStream);
+      console.log('New stream tracks:', newStream.getTracks());
+      
       // Update video element
       if (livePreviewRef.current) {
+        // Clear existing stream
+        livePreviewRef.current.srcObject = null;
+        
+        // Set new stream
         livePreviewRef.current.srcObject = newStream;
-        livePreviewRef.current.play().catch(console.error);
+        
+        // Play the new stream
+        try {
+          await livePreviewRef.current.play();
+          console.log('New camera stream playing successfully');
+        } catch (playError) {
+          console.error('Failed to play new stream:', playError);
+          // Try again after a short delay
+          setTimeout(async () => {
+            try {
+              await livePreviewRef.current?.play();
+              console.log('Delayed play successful');
+            } catch (retryError) {
+              console.error('Delayed play failed:', retryError);
+            }
+          }, 100);
+        }
       }
       
-      // Note: MediaRecorder stream is read-only, so we can't update it
-      // The recording will continue with the new stream
+      // Create new media recorder with the new stream
+      if (mediaRecorderRef.current) {
+        console.log('Creating new media recorder with updated stream...');
+        
+        // Stop the old media recorder
+        if (mediaRecorderRef.current.state !== 'inactive') {
+          mediaRecorderRef.current.stop();
+        }
+        
+        // Create new media recorder with the new stream
+        const newMediaRecorder = new MediaRecorder(newStream);
+        mediaRecorderRef.current = newMediaRecorder;
+        
+        // Set up the new media recorder
+        newMediaRecorder.ondataavailable = (e) => {
+          if (e.data.size > 0) {
+            chunksRef.current.push(e.data);
+          }
+        };
+        
+        newMediaRecorder.onstop = () => {
+          const blob = new Blob(chunksRef.current, { type: 'video/webm' });
+          const url = URL.createObjectURL(blob);
+          setInspectionVideo(url);
+          setInspectionFile(new File([blob], 'inspection.webm', { type: 'video/webm' }));
+        };
+        
+        // Start the new media recorder
+        newMediaRecorder.start();
+        console.log('New media recorder started successfully');
+      }
+      
       console.log('Camera switched successfully');
       
     } catch (error) {
@@ -276,14 +371,28 @@ const InspectionPage = () => {
     try {
       console.log('Starting camera access...');
       
-      // Clean up any existing recording sections first to ensure clean slate
+      // Clean up any existing recording sections and video elements first
       const allRecordingSections = document.querySelectorAll('[data-recording-section]');
-      if (allRecordingSections.length > 0) {
-        console.log(`Found ${allRecordingSections.length} existing recording sections, cleaning up...`);
-        // Remove all existing recording sections
-        allRecordingSections.forEach(section => section.remove());
-        console.log('Existing recording sections removed');
-      }
+      const allLivePreviewVideos = document.querySelectorAll('[data-live-preview="true"]');
+      
+      console.log(`Found ${allRecordingSections.length} recording sections and ${allLivePreviewVideos.length} live preview videos`);
+      
+      // Remove all existing recording sections
+      allRecordingSections.forEach(section => {
+        console.log('Removing recording section:', section);
+        section.remove();
+      });
+      
+      // Remove any standalone live preview videos
+      allLivePreviewVideos.forEach(video => {
+        console.log('Removing live preview video:', video);
+        video.remove();
+      });
+      
+      // Reset refs
+      livePreviewRef.current = null;
+      
+      console.log('Cleanup completed');
       
       // Ensure video element is available before getting camera stream
       if (!livePreviewRef.current) {
@@ -309,8 +418,14 @@ const InspectionPage = () => {
       
       // Check if video element is properly mounted
       if (!livePreviewRef.current) {
-        console.error('Live preview video element not found!');
-        console.log('Attempting to create video element...');
+        console.log('Live preview video element not found, creating one...');
+        
+        // Double-check if there are any existing live preview videos in the DOM
+        const existingLiveVideos = document.querySelectorAll('[data-live-preview="true"]');
+        if (existingLiveVideos.length > 0) {
+          console.log(`Found ${existingLiveVideos.length} existing live preview videos, removing them`);
+          existingLiveVideos.forEach(video => video.remove());
+        }
         
         // Simple approach: create video element directly in the recording section
         let recordingSection = document.querySelector('[data-recording-section]');
@@ -359,6 +474,10 @@ const InspectionPage = () => {
         newVideo.autoplay = true;
         newVideo.muted = true;
         newVideo.playsInline = true;
+        newVideo.setAttribute('webkit-playsinline', 'true');
+        newVideo.setAttribute('x5-playsinline', 'true');
+        newVideo.setAttribute('x5-video-player-type', 'h5');
+        newVideo.setAttribute('x5-video-player-fullscreen', 'true');
         newVideo.className = 'w-full h-full object-cover';
         newVideo.style.transform = 'scaleX(-1)';
         
@@ -370,12 +489,14 @@ const InspectionPage = () => {
           videoContainer.className = 'relative aspect-video bg-black rounded-lg overflow-hidden';
           recordingSection.insertBefore(videoContainer, recordingSection.firstChild);
         } else {
-          console.log('Found existing video container, reusing it');
+          console.log('Found existing video container, clearing and reusing it');
+          // Clear any existing content
+          videoContainer.innerHTML = '';
         }
         
-        // Clear container and add video
-        videoContainer.innerHTML = '';
+        // Add video to container
         videoContainer.appendChild(newVideo);
+        console.log('Video element added to container');
         
         // Update ref
         livePreviewRef.current = newVideo;
@@ -591,7 +712,6 @@ const InspectionPage = () => {
       setIsRecording(false);
       setCameraReady(false);
       
-      // Clean up the recording section to prevent accumulation
       console.log('Cleaning up recording section...');
       const recordingSection = document.querySelector('[data-recording-section]');
       if (recordingSection) {
@@ -599,7 +719,13 @@ const InspectionPage = () => {
         console.log('Recording section removed');
       }
       
-      // Reset the ref
+      // Also remove any standalone live preview videos
+      const livePreviewVideos = document.querySelectorAll('[data-live-preview="true"]');
+      livePreviewVideos.forEach(video => {
+        console.log('Removing live preview video during stop');
+        video.remove();
+      });
+      
       livePreviewRef.current = null;
     }
   };
@@ -1374,12 +1500,20 @@ Respond with ONLY this JSON (no other text):
     // Reset camera ready state
     setCameraReady(false);
     
-    // Clean up any recording sections
+    // Clean up any recording sections and live preview videos
     const recordingSections = document.querySelectorAll('[data-recording-section]');
+    const livePreviewVideos = document.querySelectorAll('[data-live-preview="true"]');
+    
     if (recordingSections.length > 0) {
       console.log('Cleaning up recording sections during clear...');
       recordingSections.forEach(section => section.remove());
       console.log('Recording sections removed during clear');
+    }
+    
+    if (livePreviewVideos.length > 0) {
+      console.log('Cleaning up live preview videos during clear...');
+      livePreviewVideos.forEach(video => video.remove());
+      console.log('Live preview videos removed during clear');
     }
     
     // Reset the live preview ref
@@ -1511,6 +1645,15 @@ Respond with ONLY this JSON (no other text):
                               className="w-full h-32 object-cover rounded-lg"
                               controls
                               preload="metadata"
+                              playsInline
+                              webkit-playsinline="true"
+                              x5-playsinline="true"
+                              x5-video-player-type="h5"
+                              x5-video-player-fullscreen="true"
+                              onClick={(e) => {
+                                const videoElement = e.currentTarget;
+                                playVideoOnMobile(videoElement);
+                              }}
                             />
                           </div>
                         )}
@@ -1544,89 +1687,42 @@ Respond with ONLY this JSON (no other text):
 
               <div className="p-4">
                 {/* Show live preview during recording */}
-                                  {isRecording && (
-                    <div className="space-y-4" data-recording-section="true">
-                      <div className="relative aspect-video bg-black rounded-lg overflow-hidden">
-                        <video
-                          ref={livePreviewRef}
-                          data-live-preview="true"
-                          data-video-type="live-preview"
-                          autoPlay
-                          muted
-                          playsInline
-                          className="w-full h-full object-cover"
-                          style={{ transform: 'scaleX(-1)' }} // Mirror the camera feed
-                          onLoadedMetadata={() => {
-                            console.log('Live video metadata loaded');
-                            setCameraReady(true);
-                          }}
-                          onCanPlay={() => {
-                            console.log('Live video can play');
-                            setCameraReady(true);
-                          }}
-                          onPlay={() => {
-                            console.log('Live video playing');
-                            setCameraReady(true);
-                          }}
-                          onError={(e) => {
-                            console.error('Live video error:', e);
-                            setCameraReady(false);
-                          }}
-                          onLoadStart={() => console.log('Live video load started')}
-                          onLoadedData={() => {
-                            console.log('Live video data loaded');
-                            setCameraReady(true);
-                          }}
-                          onClick={() => {
-                            console.log('Video clicked, attempting manual play...');
-                            if (livePreviewRef.current) {
-                              livePreviewRef.current.play().then(() => {
-                                console.log('Manual play successful');
-                                setCameraReady(true);
-                              }).catch(console.error);
-                            }
-                          }}
-                        />
-                        
-                        {/* Fallback message if camera not ready */}
-                        {!cameraReady && (
-                          <div className="absolute inset-0 flex items-center justify-center bg-black/50 text-white">
-                            <div className="text-center">
-                              <div className="animate-spin rounded-full h-8 w-8 border-2 border-white border-t-transparent mx-auto mb-2"></div>
-                              <p>Initializing camera...</p>
-                            </div>
+                {isRecording && (
+                  <>
+                    {/* Video element will be created programmatically in startRecording */}
+                    <>
+                      {/* Fallback message if camera not ready */}
+                      {/* {!cameraReady && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/50 text-white">
+                          <div className="text-center">
+                            <div className="animate-spin rounded-full h-8 w-8 border-2 border-white border-t-transparent mx-auto mb-2"></div>
+                            <p>Initializing camera...</p>
                           </div>
-                        )}
-                        
-                        {/* REC indicator */}
-                        <div className="absolute top-4 right-4 bg-red-600 text-white px-3 py-1 rounded-full text-sm font-medium flex items-center">
-                          <div className="w-2 h-2 bg-white rounded-full mr-2 animate-pulse"></div>
-                          REC
                         </div>
-                        
-                        {/* Camera switch button for mobile */}
-                        <div className="absolute top-4 left-4">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={switchCamera}
-                            className="bg-black/70 text-white border-white/20 hover:bg-black/90"
-                            title={`Switch to ${currentCameraMode === 'user' ? 'back' : 'front'} camera`}
-                          >
-                            <Camera className="w-4 h-4 mr-1" />
-                            {currentCameraMode === 'user' ? 'Back' : 'Front'}
-                          </Button>
-                        </div>
-                        
-                        {/* Debug info */}
-                        <div className="absolute bottom-4 left-4 bg-black/70 text-white px-3 py-1 rounded text-xs">
-                          Camera: {cameraReady ? 'Ready' : 'Loading...'} | 
-                          Mode: {currentCameraMode === 'user' ? 'Front' : 'Back'} |
-                          State: {livePreviewRef.current?.readyState === 4 ? 'Ready' : livePreviewRef.current?.readyState || 'Unknown'} |
-                          Stream: {livePreviewRef.current?.srcObject ? 'Yes' : 'No'} |
-                          Paused: {livePreviewRef.current?.paused ? 'Yes' : 'No'}
-                        </div>
+                      )} */}
+                      
+                      {/* REC indicator */}
+                      {/* <div className="absolute top-4 right-4 bg-red-600 text-white px-3 py-1 rounded-full text-sm font-medium flex items-center">
+                        <div className="w-2 h-2 bg-white rounded-full mr-2 animate-pulse"></div>
+                        REC
+                      </div> */}
+                      
+                      {/* Camera switch button for mobile */}
+                      <div className="absolute top-4 left-4">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={switchCamera}
+                          className="bg-black/70 text-white border-white/20 hover:bg-black/90"
+                          title={`Switch to ${currentCameraMode === 'user' ? 'back' : 'front'} camera`}
+                        >
+                          <Camera className="w-4 h-4 mr-1" />
+                          {currentCameraMode === 'user' ? 'Back' : 'Front'}
+                        </Button>
                       </div>
+                      
+
+                    </>
                       
                                             <div className="flex justify-center gap-3">
                         <Button 
@@ -1669,7 +1765,7 @@ Respond with ONLY this JSON (no other text):
                           </Button>
                         )}
                       </div>
-                  </div>
+                  </>
                 )}
                 
                 {/* Show recorded video after recording */}
@@ -1682,6 +1778,16 @@ Respond with ONLY this JSON (no other text):
                         controls
                         className="w-full h-full object-cover"
                         data-video-type="recorded"
+                        playsInline
+                        webkit-playsinline="true"
+                        x5-playsinline="true"
+                        x5-video-player-type="h5"
+                        x5-video-player-fullscreen="true"
+                        onClick={() => {
+                          if (videoRef.current) {
+                            playVideoOnMobile(videoRef.current);
+                          }
+                        }}
                       />
                     </div>
                     
@@ -1966,4 +2072,4 @@ Respond with ONLY this JSON (no other text):
   );
 };
 
-export default InspectionPage; 
+export default InspectionPage;
