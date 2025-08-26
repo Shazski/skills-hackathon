@@ -227,12 +227,25 @@ const InspectionPage = () => {
     try {
       console.log('Attempting to play video on mobile...');
       
-      // Set mobile-specific attributes
+      // Set mobile-specific attributes for iPhone
       videoElement.setAttribute('webkit-playsinline', 'true');
       videoElement.setAttribute('x5-playsinline', 'true');
       videoElement.setAttribute('x5-video-player-type', 'h5');
       videoElement.setAttribute('x5-video-player-fullscreen', 'true');
+      videoElement.setAttribute('webkit-playsinline', 'true');
+      videoElement.setAttribute('playsinline', 'true');
       videoElement.playsInline = true;
+      
+      // Force load the video
+      videoElement.load();
+      
+      // Wait for video to be ready
+      await new Promise((resolve) => {
+        videoElement.addEventListener('loadedmetadata', resolve, { once: true });
+        videoElement.addEventListener('canplay', resolve, { once: true });
+        // Timeout after 3 seconds
+        setTimeout(resolve, 3000);
+      });
       
       // Try to play
       await videoElement.play();
@@ -248,6 +261,16 @@ const InspectionPage = () => {
           console.log('Mobile video play successful after click');
         } catch (clickError) {
           console.error('Mobile video play failed after click:', clickError);
+        }
+      }, { once: true });
+      
+      // Additional fallback: try with touchstart event for iOS
+      videoElement.addEventListener('touchstart', async () => {
+        try {
+          await videoElement.play();
+          console.log('Mobile video play successful after touch');
+        } catch (touchError) {
+          console.error('Mobile video play failed after touch:', touchError);
         }
       }, { once: true });
       
@@ -1646,11 +1669,27 @@ Respond with ONLY this JSON (no other text):
                               controls
                               preload="metadata"
                               playsInline
-                              webkit-playsinline="true"
-                              x5-playsinline="true"
-                              x5-video-player-type="h5"
-                              x5-video-player-fullscreen="true"
+                              onLoadedMetadata={(e) => {
+                                const videoElement = e.currentTarget;
+                                console.log('Video metadata loaded:', videoElement.videoWidth, 'x', videoElement.videoHeight);
+                                // Set mobile-specific attributes programmatically
+                                videoElement.setAttribute('webkit-playsinline', 'true');
+                                videoElement.setAttribute('x5-playsinline', 'true');
+                                videoElement.setAttribute('x5-video-player-type', 'h5');
+                                videoElement.setAttribute('x5-video-player-fullscreen', 'true');
+                              }}
+                              onCanPlay={(e) => {
+                                const videoElement = e.currentTarget;
+                                console.log('Video can play:', videoElement.readyState);
+                              }}
+                              onError={(e) => {
+                                console.error('Video error:', e.currentTarget.error);
+                              }}
                               onClick={(e) => {
+                                const videoElement = e.currentTarget;
+                                playVideoOnMobile(videoElement);
+                              }}
+                              onTouchStart={(e) => {
                                 const videoElement = e.currentTarget;
                                 playVideoOnMobile(videoElement);
                               }}
@@ -1686,7 +1725,7 @@ Respond with ONLY this JSON (no other text):
               </div>
 
               <div className="p-4">
-                {/* Show live preview during recording */}
+                                {/* Show live preview during recording */}
                 {isRecording && (
                   <>
                     {/* Video element will be created programmatically in startRecording */}
@@ -1721,10 +1760,17 @@ Respond with ONLY this JSON (no other text):
                         </Button>
                       </div>
                       
-
+                      {/* Debug info */}
+                      {/* <div className="absolute bottom-4 left-4 bg-black/70 text-white px-3 py-1 rounded text-xs">
+                        Camera: {cameraReady ? 'Ready' : 'Loading...'} | 
+                        Mode: {currentCameraMode === 'user' ? 'Front' : 'Back'} |
+                        State: {livePreviewRef.current?.readyState === 4 ? 'Ready' : livePreviewRef.current?.readyState || 'Unknown'} |
+                        Stream: {livePreviewRef.current?.srcObject ? 'Yes' : 'No'} |
+                        Paused: {livePreviewRef.current?.paused ? 'Yes' : 'No'}
+                      </div> */}
                     </>
-                      
-                                            <div className="flex justify-center gap-3">
+                    
+                    <div className="flex justify-center gap-3">
                         <Button 
                           variant="destructive"
                           onClick={stopRecording}
@@ -1765,7 +1811,7 @@ Respond with ONLY this JSON (no other text):
                           </Button>
                         )}
                       </div>
-                  </>
+                    </>
                 )}
                 
                 {/* Show recorded video after recording */}
@@ -1779,10 +1825,14 @@ Respond with ONLY this JSON (no other text):
                         className="w-full h-full object-cover"
                         data-video-type="recorded"
                         playsInline
-                        webkit-playsinline="true"
-                        x5-playsinline="true"
-                        x5-video-player-type="h5"
-                        x5-video-player-fullscreen="true"
+                        onLoadedMetadata={(e) => {
+                          const videoElement = e.currentTarget;
+                          // Set mobile-specific attributes programmatically
+                          videoElement.setAttribute('webkit-playsinline', 'true');
+                          videoElement.setAttribute('x5-playsinline', 'true');
+                          videoElement.setAttribute('x5-video-player-type', 'h5');
+                          videoElement.setAttribute('x5-video-player-fullscreen', 'true');
+                        }}
                         onClick={() => {
                           if (videoRef.current) {
                             playVideoOnMobile(videoRef.current);
