@@ -240,68 +240,131 @@ Format your response as a clean list with each item clearly described.`
     }
   };
 
-  // Enhanced comparison logic with item counting
+  // Enhanced comparison logic with intelligent matching
   const compareItems = (referenceItems: string[], inspectionItems: string[]): ComparisonResult => {
-    // Normalize items for better comparison
-    const normalizeItem = (item: string) => item.toLowerCase().trim();
+    // Helper function to extract key words from item description
+    const extractKeyWords = (item: string): string[] => {
+      const stopWords = new Set(['the','and','or','with','on','in','at','to','for','of','a','an','near','by','into','from','over','under']);
+      const removeDescriptors = (text: string) => text
+        .replace(/on the (table|desk|counter|floor|wall)/g, '')
+        .replace(/near the (sink|window|door)/g, '')
+        .replace(/in the (room|kitchen|hall|bedroom)/g, '')
+        .replace(/with.*?accent/g, '')
+        .replace(/black |white |red |blue |green |yellow |brown |gray |grey /g, '')
+        .replace(/plastic |metal |wooden |glass |ceramic /g, '')
+        .replace(/large |small |big |tiny |medium /g, '')
+        .replace(/new |old |used /g, '')
+        .replace(/\(.*?\)/g, '')
+        .replace(/[^\w\s]/g, ' ');
+
+      const singularize = (w: string) => {
+        const map: Record<string,string> = { dishes: 'dish', knives: 'knife', lives: 'life', leaves: 'leaf', men: 'man', women: 'woman', children: 'child', spoons: 'spoon', bottles: 'bottle', towels: 'towel' };
+        if (map[w]) return map[w];
+        if (w.endsWith('ies')) return w.slice(0,-3)+'y';
+        if (w.endsWith('ses') || w.endsWith('xes')) return w.slice(0,-2);
+        if (w.endsWith('s') && !w.endsWith('ss')) return w.slice(0,-1);
+        return w;
+      };
+
+      const normalized = removeDescriptors(item.toLowerCase())
+        .trim()
+        .split(/\s+/)
+        .map(singularize)
+        .filter(word => word.length > 2 && !stopWords.has(word));
+
+      return [...new Set(normalized)];
+    };
+
+    // Helper function to calculate similarity between two items
+    const calculateSimilarity = (item1: string, item2: string): number => {
+      const w1 = extractKeyWords(item1);
+      const w2 = extractKeyWords(item2);
+      if (w1.length === 0 || w2.length === 0) return 0;
+
+      // Jaccard similarity of keyword sets
+      const common = w1.filter(w => w2.includes(w));
+      const union = new Set([...w1, ...w2]);
+      const jaccard = common.length / union.size;
+
+      // Head noun boost (last noun-like token)
+      const head = (arr: string[]) => arr[arr.length - 1] || '';
+      const headBoost = head(w1) && head(w1) === head(w2) ? 0.2 : 0;
+
+      // Containment bonus: one description mostly contained in the other (>60%)
+      const containBonus = (common.length / Math.min(w1.length, w2.length)) >= 0.6 ? 0.2 : 0;
+
+      return Math.min(1, jaccard + headBoost + containBonus);
+    };
+
+    // Helper function to find best match for an item
+    const findBestMatch = (item: string, itemList: string[], threshold: number = 0.35): string | null => {
+      let bestMatch: string | null = null;
+      let bestSimilarity = 0;
+      
+      for (const candidate of itemList) {
+        const similarity = calculateSimilarity(item, candidate);
+        if (similarity > bestSimilarity && similarity >= threshold) {
+          bestSimilarity = similarity;
+          bestMatch = candidate;
+        }
+      }
+      
+      return bestMatch;
+    };
+
+    // Create copies for processing
+    const remainingReference = [...referenceItems];
+    const remainingInspection = [...inspectionItems];
     
-    const normalizedReference = referenceItems.map(normalizeItem);
-    const normalizedInspection = inspectionItems.map(normalizeItem);
-    
-    // Count items
-    const referenceItemCounts = new Map<string, number>();
-    const inspectionItemCounts = new Map<string, number>();
-    
-    normalizedReference.forEach(item => {
-      referenceItemCounts.set(item, (referenceItemCounts.get(item) || 0) + 1);
-    });
-    
-    normalizedInspection.forEach(item => {
-      inspectionItemCounts.set(item, (inspectionItemCounts.get(item) || 0) + 1);
-    });
-    
-    // Find missing items (items in reference but not in inspection)
+    const matchedPairs: Array<{ reference: string; inspection: string; similarity: number }> = [];
     const missingItems: string[] = [];
-    referenceItemCounts.forEach((count, item) => {
-      const inspectionCount = inspectionItemCounts.get(item) || 0;
-      if (inspectionCount < count) {
-        const missingCount = count - inspectionCount;
-        if (missingCount === 1) {
-          missingItems.push(item);
-        } else {
-          missingItems.push(`${item} (${missingCount} missing)`);
-        }
-      }
-    });
-    
-    // Find new items (items in inspection but not in reference)
     const newItems: string[] = [];
-    inspectionItemCounts.forEach((count, item) => {
-      const referenceCount = referenceItemCounts.get(item) || 0;
-      if (referenceCount < count) {
-        const newCount = count - referenceCount;
-        if (newCount === 1) {
-          newItems.push(item);
-        } else {
-          newItems.push(`${item} (${newCount} additional)`);
-        }
-      }
-    });
-    
-    // Find common items
     const commonItems: string[] = [];
-    referenceItemCounts.forEach((count, item) => {
-      const inspectionCount = inspectionItemCounts.get(item) || 0;
-      if (inspectionCount > 0) {
-        const commonCount = Math.min(count, inspectionCount);
-        if (commonCount === 1) {
-          commonItems.push(item);
-        } else {
-          commonItems.push(`${item} (${commonCount})`);
+
+    // First pass: Find exact matches
+    for (let i = remainingReference.length - 1; i >= 0; i--) {
+      const refItem = remainingReference[i];
+      const inspectionIndex = remainingInspection.findIndex(inspItem => 
+        refItem.toLowerCase().trim() === inspItem.toLowerCase().trim()
+      );
+      
+      if (inspectionIndex !== -1) {
+        matchedPairs.push({
+          reference: refItem,
+          inspection: remainingInspection[inspectionIndex],
+          similarity: 1.0
+        });
+        commonItems.push(refItem);
+        remainingReference.splice(i, 1);
+        remainingInspection.splice(inspectionIndex, 1);
+      }
+    }
+
+    // Second pass: Find similar matches
+    for (let i = remainingReference.length - 1; i >= 0; i--) {
+      const refItem = remainingReference[i];
+      const bestMatch = findBestMatch(refItem, remainingInspection, 0.4);
+      
+      if (bestMatch) {
+        const similarity = calculateSimilarity(refItem, bestMatch);
+        matchedPairs.push({
+          reference: refItem,
+          inspection: bestMatch,
+          similarity
+        });
+        commonItems.push(refItem); // Use reference item as the common name
+        remainingReference.splice(i, 1);
+        const matchIndex = remainingInspection.findIndex(item => item === bestMatch);
+        if (matchIndex !== -1) {
+          remainingInspection.splice(matchIndex, 1);
         }
       }
-    });
-    
+    }
+
+    // Remaining items are truly missing or new
+    missingItems.push(...remainingReference);
+    newItems.push(...remainingInspection);
+
     return {
       missingItems,
       newItems,
