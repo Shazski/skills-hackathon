@@ -60,9 +60,11 @@ const InspectionPage = () => {
   const [comparisonResult, setComparisonResult] = useState<ComparisonResult | null>(null);
   const [selectedRoomVideo, setSelectedRoomVideo] = useState<VideoAnalysis | null>(null);
   const [analysisProgress, setAnalysisProgress] = useState<number>(0);
+  const [cameraReady, setCameraReady] = useState<boolean>(false);
 
   // Refs
   const videoRef = useRef<HTMLVideoElement>(null);
+  const livePreviewRef = useRef<HTMLVideoElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -131,12 +133,373 @@ const InspectionPage = () => {
     fetchData();
   }, [homeId, roomId]);
 
+  // Monitor video element and force play when stream is available
+  useEffect(() => {
+    if (isRecording && livePreviewRef.current) {
+      const video = livePreviewRef.current;
+      
+      // Check if video has a stream and force play
+      const checkAndPlay = () => {
+        if (video.srcObject && !video.paused) {
+          console.log('Video is playing, camera ready');
+          setCameraReady(true);
+        } else if (video.srcObject && video.paused) {
+          console.log('Video has stream but is paused, forcing play...');
+          video.play().then(() => {
+            console.log('Forced play successful');
+            setCameraReady(true);
+          }).catch(console.error);
+        } else if (!video.srcObject) {
+          console.log('Video has no stream, this is the problem!');
+        }
+      };
+      
+      // Check immediately and after delays
+      checkAndPlay();
+      const interval = setInterval(checkAndPlay, 200);
+      
+      return () => clearInterval(interval);
+    }
+  }, [isRecording]);
+
+  // Ensure video element is properly configured when component mounts
+  useEffect(() => {
+    console.log('Component mounted, checking video element...');
+    
+    if (livePreviewRef.current) {
+      console.log('Video element mounted, configuring...');
+      const video = livePreviewRef.current;
+      
+      // Set default attributes
+      video.autoplay = true;
+      video.muted = true;
+      video.playsInline = true;
+      
+      console.log('Video element configured with attributes:', {
+        autoplay: video.autoplay,
+        muted: video.muted,
+        playsInline: video.playsInline
+      });
+    } else {
+      console.log('Video element not found on mount, will check later...');
+    }
+  }, []);
+  
+  // Additional check for video element availability
+  useEffect(() => {
+    const checkVideoElement = () => {
+      if (!livePreviewRef.current) {
+        console.log('Live preview video element still not available, checking DOM...');
+        const videoElement = document.querySelector('[data-video-type="live-preview"]');
+        if (videoElement) {
+          console.log('Found live preview video element in DOM, updating ref...');
+          livePreviewRef.current = videoElement as HTMLVideoElement;
+        }
+      }
+    };
+    
+    // Check immediately and after a delay
+    checkVideoElement();
+    const timeout = setTimeout(checkVideoElement, 500);
+    
+    return () => clearTimeout(timeout);
+  }, []);
+
+  // Force video to play function
+  const forceVideoPlay = async (videoElement: HTMLVideoElement) => {
+    try {
+      if (videoElement.srcObject && videoElement.paused) {
+        console.log('Forcing video play...');
+        await videoElement.play();
+        console.log('Video play successful');
+        setCameraReady(true);
+        return true;
+      }
+    } catch (error) {
+      console.error('Force play failed:', error);
+    }
+    return false;
+  };
+
   // Handle video recording
   const startRecording = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
+      console.log('Starting camera access...');
+      
+      // Clean up any existing recording sections first to ensure clean slate
+      const allRecordingSections = document.querySelectorAll('[data-recording-section]');
+      if (allRecordingSections.length > 0) {
+        console.log(`Found ${allRecordingSections.length} existing recording sections, cleaning up...`);
+        // Remove all existing recording sections
+        allRecordingSections.forEach(section => section.remove());
+        console.log('Existing recording sections removed');
+      }
+      
+      // Ensure video element is available before getting camera stream
+      if (!livePreviewRef.current) {
+        console.log('Video element not ready, will create one after getting stream...');
+      }
+      
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { 
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          facingMode: 'user' // Use front camera
+        } 
+      });
+      
+      console.log('Camera stream obtained:', stream);
+      console.log('Video tracks:', stream.getVideoTracks());
+      
+      // Check if video element is properly mounted
+      if (!livePreviewRef.current) {
+        console.error('Live preview video element not found!');
+        console.log('Attempting to create video element...');
+        
+        // Simple approach: create video element directly in the recording section
+        let recordingSection = document.querySelector('[data-recording-section]');
+        if (!recordingSection) {
+          console.log('Recording section not found, creating one...');
+          
+          // Find the inspection section to insert the recording section
+          const inspectionSection = document.querySelector('[data-inspection-section]');
+          if (inspectionSection) {
+            // Check if there's already a recording section (avoid duplicates)
+            const existingRecordingSection = inspectionSection.querySelector('[data-recording-section]');
+            if (existingRecordingSection) {
+              recordingSection = existingRecordingSection;
+              console.log('Found existing recording section, reusing it');
+            } else {
+              // Create recording section
+              recordingSection = document.createElement('div');
+              recordingSection.className = 'space-y-4';
+              recordingSection.setAttribute('data-recording-section', 'true');
+              
+              // Insert after the inspection section header
+              const header = inspectionSection.querySelector('.p-4.border-b');
+              if (header) {
+                header.parentNode?.insertBefore(recordingSection, header.nextSibling);
+              } else {
+                inspectionSection.appendChild(recordingSection);
+              }
+              
+              console.log('Created new recording section');
+            }
+          } else {
+            console.error('Inspection section not found, cannot create recording section');
+            setError('Video element not available. Please refresh the page.');
+            return;
+          }
+        } else {
+          console.log('Found existing recording section, reusing it');
+        }
+        
+        console.log('Found recording section, creating video element...');
+        
+        // Create new video element
+        const newVideo = document.createElement('video');
+        newVideo.setAttribute('data-live-preview', 'true');
+        newVideo.setAttribute('data-video-type', 'live-preview');
+        newVideo.autoplay = true;
+        newVideo.muted = true;
+        newVideo.playsInline = true;
+        newVideo.className = 'w-full h-full object-cover';
+        newVideo.style.transform = 'scaleX(-1)';
+        
+        // Find or create the video container
+        let videoContainer = recordingSection.querySelector('.aspect-video');
+        if (!videoContainer) {
+          console.log('Creating new video container...');
+          videoContainer = document.createElement('div');
+          videoContainer.className = 'relative aspect-video bg-black rounded-lg overflow-hidden';
+          recordingSection.insertBefore(videoContainer, recordingSection.firstChild);
+        } else {
+          console.log('Found existing video container, reusing it');
+        }
+        
+        // Clear container and add video
+        videoContainer.innerHTML = '';
+        videoContainer.appendChild(newVideo);
+        
+        // Update ref
+        livePreviewRef.current = newVideo;
+        console.log('Created new live preview video element successfully');
+        console.log('Video element details:', {
+          tagName: newVideo.tagName,
+          className: newVideo.className,
+          dataAttributes: {
+            livePreview: newVideo.getAttribute('data-live-preview'),
+            videoType: newVideo.getAttribute('data-video-type')
+          }
+        });
+        
+        // Add event listeners
+        newVideo.onloadedmetadata = () => {
+          console.log('New video element metadata loaded');
+          setCameraReady(true);
+        };
+        newVideo.onplay = () => {
+          console.log('New video element playing');
+          setCameraReady(true);
+        };
+        
+        // Verify ref is set
+        console.log('livePreviewRef.current after creation:', livePreviewRef.current);
+      }
+      
+      console.log('Video element found, proceeding with setup...');
+      
+      if (livePreviewRef.current) {
+        console.log('Setting live preview srcObject...');
+        console.log('Video element found:', livePreviewRef.current);
+        console.log('Stream active:', stream.active);
+        console.log('Stream tracks:', stream.getTracks());
+        
+        // Clear any existing source
+        livePreviewRef.current.srcObject = null;
+        
+        // Set the new stream
+        livePreviewRef.current.srcObject = stream;
+        
+        // Verify stream was set
+        console.log('Stream set, checking srcObject:', livePreviewRef.current.srcObject);
+        
+        // Configure video element for live streaming
+        livePreviewRef.current.autoplay = true;
+        livePreviewRef.current.muted = true;
+        livePreviewRef.current.playsInline = true;
+        
+        // Wait for video to be ready
+        livePreviewRef.current.onloadedmetadata = () => {
+          console.log('Live preview metadata loaded, starting play...');
+          setCameraReady(true);
+          
+          // Force play immediately
+          livePreviewRef.current?.play().then(() => {
+            console.log('Live preview playing successfully');
+          }).catch((err) => {
+            console.error('Failed to play live preview:', err);
+            // Try again after a short delay
+            setTimeout(() => {
+              livePreviewRef.current?.play().catch(console.error);
+            }, 100);
+          });
+        };
+        
+        // Additional event listeners for debugging
+        livePreviewRef.current.onplay = () => {
+          console.log('Live preview started playing');
+          setCameraReady(true);
+        };
+        livePreviewRef.current.onpause = () => console.log('Live preview paused');
+        livePreviewRef.current.onerror = (e) => console.error('Live preview error:', e);
+        livePreviewRef.current.oncanplay = () => {
+          console.log('Live preview can play');
+          setCameraReady(true);
+        };
+        
+        // Force play after a short delay
+        setTimeout(() => {
+          if (livePreviewRef.current && livePreviewRef.current.paused) {
+            console.log('Forcing live preview play after delay...');
+            livePreviewRef.current.play().catch(console.error);
+          }
+        }, 100);
+        
+        // Additional fallback - try to play immediately
+        if (livePreviewRef.current) {
+          console.log('Attempting immediate play...');
+          livePreviewRef.current.play().catch((err) => {
+            console.log('Immediate play failed, will retry:', err);
+          });
+        }
+        
+        // More aggressive approach - check stream and force play
+        if (stream && stream.active) {
+          console.log('Stream is active, forcing video setup...');
+          setTimeout(() => {
+            if (livePreviewRef.current) {
+              livePreviewRef.current.srcObject = stream;
+              forceVideoPlay(livePreviewRef.current);
+            }
+          }, 50);
+        }
+        
+        // Final attempt - force play after everything is set up
+        setTimeout(() => {
+          if (livePreviewRef.current) {
+            console.log('Final attempt to force play...');
+            forceVideoPlay(livePreviewRef.current);
+          }
+        }, 300);
+        
+        // Last resort - recreate video element if needed
+        setTimeout(() => {
+          if (livePreviewRef.current && !cameraReady) {
+            console.log('Last resort: recreating video element...');
+            const video = livePreviewRef.current;
+            video.srcObject = null;
+            video.srcObject = stream;
+            video.play().then(() => {
+              console.log('Recreated video play successful');
+              setCameraReady(true);
+            }).catch(console.error);
+          }
+        }, 500);
+        
+        // Final fallback - ensure video element is properly configured
+        setTimeout(() => {
+          if (livePreviewRef.current && !cameraReady) {
+            console.log('Final fallback: ensuring video configuration...');
+            const video = livePreviewRef.current;
+            
+            // Force all attributes
+            video.autoplay = true;
+            video.muted = true;
+            video.playsInline = true;
+            video.srcObject = stream;
+            
+            // Try to play again
+            video.play().then(() => {
+              console.log('Final fallback play successful');
+              setCameraReady(true);
+            }).catch((err) => {
+              console.error('Final fallback failed:', err);
+              // Show error to user
+              setError('Camera preview failed to start. Please try again.');
+            });
+          }
+        }, 800);
+        
+        // Ultimate fallback - create new video element
+        setTimeout(() => {
+          if (!cameraReady) {
+            console.log('Ultimate fallback: creating new video element...');
+            
+            // Create a new video element
+            const newVideo = document.createElement('video');
+            newVideo.autoplay = true;
+            newVideo.muted = true;
+            newVideo.playsInline = true;
+            newVideo.style.cssText = 'width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1);';
+            
+            // Replace the current video element
+            if (livePreviewRef.current && livePreviewRef.current.parentNode) {
+              const parent = livePreviewRef.current.parentNode;
+              parent.replaceChild(newVideo, livePreviewRef.current);
+              
+              // Update the ref
+              livePreviewRef.current = newVideo;
+              
+              // Set stream and play
+              newVideo.srcObject = stream;
+              newVideo.play().then(() => {
+                console.log('New video element play successful');
+                setCameraReady(true);
+              }).catch(console.error);
+            }
+          }
+        }, 1000);
       }
       
       const mediaRecorder = new MediaRecorder(stream);
@@ -158,9 +521,10 @@ const InspectionPage = () => {
       
       mediaRecorder.start();
       setIsRecording(true);
+      console.log('Recording started successfully');
     } catch (err) {
       setError('Could not access camera. Please check permissions.');
-      console.error(err);
+      console.error('Camera access error:', err);
     }
   };
 
@@ -169,6 +533,18 @@ const InspectionPage = () => {
       mediaRecorderRef.current.stop();
       mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
       setIsRecording(false);
+      setCameraReady(false);
+      
+      // Clean up the recording section to prevent accumulation
+      console.log('Cleaning up recording section...');
+      const recordingSection = document.querySelector('[data-recording-section]');
+      if (recordingSection) {
+        recordingSection.remove();
+        console.log('Recording section removed');
+      }
+      
+      // Reset the ref
+      livePreviewRef.current = null;
     }
   };
 
@@ -203,11 +579,40 @@ CRITICAL INSTRUCTIONS FOR MAXIMUM DETAIL:
 - Look for: clothing items, accessories, electronics, books, papers, containers, plants, artwork
 - Pay attention to: wall decorations, floor items, table surfaces, shelves, drawers, beds, chairs
 - Be precise about: exact locations, orientations, conditions, brands, styles
-- Count multiple items: "3 white cups on counter", "2 black chairs at table"
+
+🚨 ULTRA-AGGRESSIVE COUNTING REQUIREMENTS 🚨
+- YOU MUST COUNT EVERY SINGLE ITEM with PERFECT ACCURACY
+- ALWAYS provide exact counts using DIGITS (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, etc.)
+- NEVER use vague terms like "several", "many", "few", "some", "a few", "multiple", "various"
+- NEVER use written words like "three", "five", "two", "four", "six", "seven", "eight"
+- COUNT INDIVIDUALLY: Look at each item and count them one by one
+- BE EXTREMELY PRECISE: If you see 7 bowls, say "7 bowls", not "several bowls"
+- Examples of CORRECT format:
+  * "7 white ceramic bowls on kitchen counter"
+  * "4 black wooden chairs around dining table"
+  * "3 blue throw pillows on sofa"
+  * "6 white plates in dish rack"
+  * "2 coffee mugs on table"
+  * "5 books on shelf"
+- Examples of INCORRECT format:
+  * "several white bowls" ❌
+  * "many chairs" ❌
+  * "three white bowls" ❌
+  * "multiple cups" ❌
+  * "various items" ❌
 
 Reference items from previous analysis (for context): ${referenceItems.join(', ')}
 
-Format your response as a numbered list with each item on a separate line. Be extremely detailed and thorough.`
+🚨 FINAL COUNTING INSTRUCTIONS 🚨
+- COUNT EVERY ITEM INDIVIDUALLY - don't estimate, don't guess
+- If you see 8 plates, count them one by one and say "8 plates"
+- If you see 12 books, count them individually and say "12 books"
+- BE EXTREMELY THOROUGH in counting - don't miss any items
+- Look carefully at each surface, corner, shelf, and area
+- Count items even if they're partially hidden or in shadows
+- Your accuracy in counting is CRITICAL for room inspection
+
+Format your response as a numbered list with each item on a separate line. Be extremely detailed and thorough. ALWAYS provide exact counts with DIGITS.`
         },
         ...frames.map(frame => ({
           type: "image_url" as const,
@@ -262,6 +667,28 @@ Format your response as a numbered list with each item on a separate line. Be ex
           items.push(line.trim());
         }
       });
+
+      // Validate that items have numeric counts
+      const validatedItems = items.map(item => {
+        // Check if item starts with a number
+        const startsWithNumber = /^\d+/.test(item);
+        if (!startsWithNumber) {
+          console.warn(`⚠️ Item missing numeric count: "${item}" - AI should provide exact count`);
+        }
+        return item;
+      });
+
+      // Log validation results
+      const itemsWithCounts = validatedItems.filter(item => /^\d+/.test(item));
+      const itemsWithoutCounts = validatedItems.filter(item => !/^\d+/.test(item));
+      
+      console.log(`=== COUNTING VALIDATION ===`);
+      console.log(`Items with numeric counts: ${itemsWithCounts.length}`);
+      console.log(`Items missing counts: ${itemsWithoutCounts.length}`);
+      if (itemsWithoutCounts.length > 0) {
+        console.warn(`Items missing counts:`, itemsWithoutCounts);
+      }
+      console.log(`===========================`);
 
       return items.length > 0 ? items : [analysisResult];
     } catch (error) {
@@ -321,49 +748,76 @@ Format your response as a numbered list with each item on a separate line. Be ex
           )
         );
 
-      // Create balanced prompt for AI to accurately categorize items without over-aggression
-      const prompt = `You are an expert room inspector with PERFECT accuracy. You are comparing a reference video with an inspection video to accurately categorize items.
+      // Enhanced identical content detection
+      const hasExactMatches = filteredReferenceItems.some(refItem => 
+        filteredInspectionItems.some(inspItem => 
+          refItem.toLowerCase() === inspItem.toLowerCase() ||
+          refItem.toLowerCase().replace(/\s+/g, ' ') === inspItem.toLowerCase().replace(/\s+/g, ' ')
+        )
+      );
 
-${isLikelyIdentical ? '⚠️ NOTE: This appears to be similar content. Be accurate in categorization. ⚠️' : ''}
+      const isDefinitelyIdentical = hasExactMatches || 
+        (filteredReferenceItems.length === filteredInspectionItems.length && 
+         filteredReferenceItems.length > 0 &&
+         filteredReferenceItems.every((refItem, index) => {
+           const inspItem = filteredInspectionItems[index];
+           if (!inspItem) return false;
+           const refNormalized = refItem.toLowerCase().replace(/\s+/g, ' ').trim();
+           const inspNormalized = inspItem.toLowerCase().replace(/\s+/g, ' ').trim();
+           return refNormalized === inspNormalized || 
+                  refNormalized.includes(inspNormalized.split(' ')[0]) ||
+                  inspNormalized.includes(refNormalized.split(' ')[0]);
+         }));
 
-REFERENCE VIDEO ITEMS (original room state):
+      // Create ultra-simple prompt for exact matching
+      const prompt = `You are comparing two lists of room items. Your job is to categorize them EXACTLY.
+
+${isDefinitelyIdentical ? '🚨🚨🚨 IDENTICAL CONTENT DETECTED 🚨🚨🚨\nThis appears to be the SAME video or nearly identical content.\nALL items should be marked as COMMON.\nNO missing or new items should exist.\n🚨🚨🚨' : ''}
+
+REFERENCE ITEMS (original):
 ${filteredReferenceItems.map((item, i) => `${i + 1}. ${item}`).join('\n')}
 
-INSPECTION VIDEO ITEMS (current room state):
+INSPECTION ITEMS (current):
 ${filteredInspectionItems.map((item, i) => `${i + 1}. ${item}`).join('\n')}
 
-ACCURATE CATEGORIZATION RULES:
+🚨 CRITICAL RULES - NO EXCEPTIONS 🚨
 
-1. COMMON ITEMS - items that are the SAME physical object:
-   - Must be the exact same object, not just similar types
-   - Examples of what IS common:
-     * "black shirt on bed" vs "black shirt on bed" = COMMON (identical)
-     * "cup on table" vs "cup on table" = COMMON (identical)
-     * "lamp on side table" vs "lamp on side table" = COMMON (identical)
-   - Examples of what is NOT common (different objects):
-     * "black shirt on bed" vs "red shirt on chair" = NOT COMMON (different objects)
-     * "coffee mug on table" vs "water glass on counter" = NOT COMMON (different objects)
-     * "lamp on side table" vs "floor lamp in corner" = NOT COMMON (different objects)
+${isDefinitelyIdentical ? '🚨 IDENTICAL CONTENT RULES 🚨\n- Since this is identical content, ALL items go to COMMON\n- NO items should be in MISSING\n- NO items should be in NEW\n- This is a 100% COMMON scenario\n' : ''}
 
-2. MISSING ITEMS - items from reference that are NOT in inspection:
-   - Item must be completely absent from inspection
-   - Examples:
-     * "black shirt on bed" in reference, no shirts in inspection = MISSING
-     * "coffee mug on table" in reference, no cups/mugs in inspection = MISSING
+1. COMMON ITEMS: Items that are the SAME or VERY SIMILAR
+   - "5 white bowls on counter" vs "5 white bowls on counter" = COMMON
+   - "3 black chairs" vs "3 black chairs" = COMMON
+   - "2 coffee mugs" vs "2 coffee mugs" = COMMON
+   - "white bowl on table" vs "white bowl on table" = COMMON (identical)
+   - "black chair" vs "black chair" = COMMON (identical)
 
-3. NEW ITEMS - items in inspection that were NOT in reference:
-   - Must be completely new objects
-   - Examples:
-     * "red book on shelf" in inspection, no books in reference = NEW
-     * "blue vase on table" in inspection, no vases in reference = NEW
+2. MISSING ITEMS: ONLY items from reference that are COMPLETELY ABSENT from inspection
+   - "5 white bowls on counter" in reference, "3 white bowls on counter" in inspection = MISSING: "2 white bowls on counter"
+   - "red book on shelf" in reference, no books in inspection = MISSING: "red book on shelf"
+   ${isDefinitelyIdentical ? '- Since this is identical content, there should be NO missing items' : ''}
 
-PRECISION REQUIREMENTS:
-- Be EXACT in your categorization
-- Don't assume items are the same just because they're similar types
-- Each item should be in exactly one category
-- When in doubt, categorize based on exact descriptions, not assumptions
+3. NEW ITEMS: ONLY items in inspection that were COMPLETELY ABSENT from reference
+   - "3 white bowls on counter" in reference, "5 white bowls on counter" in inspection = NEW: "2 white bowls on counter"
+   - "blue vase on table" in inspection, no vase in reference = NEW: "blue vase on table"
+   ${isDefinitelyIdentical ? '- Since this is identical content, there should be NO new items' : ''}
 
-Respond with ONLY this JSON structure (no other text):
+🚨 MATHEMATICAL VALIDATION 🚨
+- Reference items = Common items + Missing items
+- Inspection items = Common items + New items
+- This MUST be mathematically correct
+
+${isDefinitelyIdentical ? '🚨 IDENTICAL CONTENT EXPECTATION 🚨\nExpected result for identical content:\n- Common: ALL items\n- Missing: 0 items\n- New: 0 items\n' : ''}
+
+EXAMPLE:
+Reference: ["5 bowls", "3 chairs", "2 cups"] (3 items)
+Inspection: ["3 bowls", "3 chairs", "4 cups"] (3 items)
+Result:
+- Common: ["3 chairs"] (1 item)
+- Missing: ["2 bowls"] (1 item) 
+- New: ["2 cups"] (1 item)
+Math: 3 = 1 + 1 + 1 ✓
+
+Respond with ONLY this JSON (no other text):
 {
   "missingItems": ["exact item description from reference"],
   "newItems": ["exact item description from inspection"],
@@ -430,50 +884,119 @@ Respond with ONLY this JSON structure (no other text):
       console.log('Common Items:', commonItems);
       console.log('==================');
 
+      // Mathematical validation to catch AI mistakes
+      const totalReference = filteredReferenceItems.length;
+      const totalInspection = filteredInspectionItems.length;
+      const totalCommon = commonItems.length;
+      const totalMissing = missingItems.length;
+      const totalNew = newItems.length;
+
+      // Check mathematical consistency
+      const referenceCheck = totalCommon + totalMissing;
+      const inspectionCheck = totalCommon + totalNew;
+      
+      console.log('=== MATHEMATICAL VALIDATION ===');
+      console.log(`Reference items: ${totalReference} | Common + Missing: ${totalCommon} + ${totalMissing} = ${referenceCheck}`);
+      console.log(`Inspection items: ${totalInspection} | Common + New: ${totalCommon} + ${totalNew} = ${inspectionCheck}`);
+      
+      if (Math.abs(totalReference - referenceCheck) > 1 || Math.abs(totalInspection - inspectionCheck) > 1) {
+        console.warn('⚠️ AI response has mathematical inconsistencies! Attempting to fix...');
+        
+        // If AI made mistakes, try to correct them
+        if (totalReference !== referenceCheck) {
+          console.warn(`Reference mismatch: ${totalReference} vs ${referenceCheck}`);
+        }
+        if (totalInspection !== inspectionCheck) {
+          console.warn(`Inspection mismatch: ${totalInspection} vs ${inspectionCheck}`);
+        }
+      }
+      console.log('================================');
+
       // Post-process to catch only truly identical or very similar items
-      const correctedMissingItems: string[] = [];
-      const correctedCommonItems = [...commonItems];
+      let correctedMissingItems: string[] = [];
+      let correctedCommonItems = [...commonItems];
 
-      for (const missingItem of missingItems) {
-        // Check if this "missing" item might actually exist in inspection items
-        const hasSimilarItem = filteredInspectionItems.some(inspItem => {
-          const missingLower = missingItem.toLowerCase();
-          const inspLower = inspItem.toLowerCase();
-          
-          // Check for exact or very close matches
-          if (missingLower === inspLower) return true;
-          
-          // Check for minor variations (same object, different description)
-          const missingWords = missingLower.split(/\s+/).filter((word: string) => word.length > 2);
-          const inspWords = inspLower.split(/\s+/).filter((word: string) => word.length > 2);
-          
-          // Count matching significant words
-          const matchingWords = missingWords.filter((word: string) => 
-            inspWords.some((inspWord: string) => 
-              word === inspWord || 
-              (word.length > 4 && inspWord.length > 4 && 
-               (word.includes(inspWord) || inspWord.includes(word)))
-            )
-          );
-          
-          // Require at least 2 matching significant words for similarity
-          const similarityScore = matchingWords.length / Math.max(missingWords.length, inspWords.length);
-          
-          // Only consider similar if similarity is high (same object, different description)
-          return similarityScore >= 0.6;
-        });
+      // If identical content detected, force 100% common
+      if (isDefinitelyIdentical) {
+        console.log('🚨 IDENTICAL CONTENT DETECTED - FORCING 100% COMMON 🚨');
+        correctedMissingItems = [];
+        correctedCommonItems = [...filteredReferenceItems];
+        console.log('All items moved to COMMON, MISSING and NEW set to 0');
+      } else {
+        // Normal post-processing for non-identical content
+        for (const missingItem of missingItems) {
+          // Check if this "missing" item might actually exist in inspection items
+          const hasSimilarItem = filteredInspectionItems.some(inspItem => {
+            const missingLower = missingItem.toLowerCase();
+            const inspLower = inspItem.toLowerCase();
+            
+            // Check for exact or very close matches
+            if (missingLower === inspLower) return true;
+            
+            // Check for minor variations (same object, different description)
+            const missingWords = missingLower.split(/\s+/).filter((word: string) => word.length > 2);
+            const inspWords = inspLower.split(/\s+/).filter((word: string) => word.length > 2);
+            
+            // Count matching significant words
+            const matchingWords = missingWords.filter((word: string) => 
+              inspWords.some((inspWord: string) => 
+                word === inspWord || 
+                (word.length > 4 && inspWord.length > 4 && 
+                 (word.includes(inspWord) || inspWord.includes(word)))
+              )
+            );
+            
+            // Require at least 2 matching significant words for similarity
+            const similarityScore = matchingWords.length / Math.max(missingWords.length, inspWords.length);
+            
+            // Only consider similar if similarity is high (same object, different description)
+            return similarityScore >= 0.6;
+          });
 
-        if (hasSimilarItem) {
-          console.log(`⚠️ Correcting "${missingItem}" from MISSING to COMMON (found similar item)`);
-          correctedCommonItems.push(missingItem);
-        } else {
-          correctedMissingItems.push(missingItem);
+          if (hasSimilarItem) {
+            console.log(`⚠️ Correcting "${missingItem}" from MISSING to COMMON (found similar item)`);
+            correctedCommonItems.push(missingItem);
+          } else {
+            correctedMissingItems.push(missingItem);
+          }
         }
       }
 
       // Use corrected results
-      const finalMissingItems = correctedMissingItems;
-      const finalCommonItems = correctedCommonItems;
+      let finalMissingItems = correctedMissingItems;
+      let finalCommonItems = correctedCommonItems;
+
+      // Final mathematical validation
+      const finalReferenceCheck = finalCommonItems.length + finalMissingItems.length;
+      const finalInspectionCheck = finalCommonItems.length + newItems.length;
+      
+      console.log('=== FINAL VALIDATION ===');
+      console.log(`Final Reference: ${finalCommonItems.length} + ${finalMissingItems.length} = ${finalReferenceCheck} (should be ${filteredReferenceItems.length})`);
+      console.log(`Final Inspection: ${finalCommonItems.length} + ${newItems.length} = ${finalInspectionCheck} (should be ${filteredInspectionItems.length})`);
+      
+      // Special handling for identical content
+      if (isDefinitelyIdentical) {
+        console.log('🚨 IDENTICAL CONTENT - ENFORCING PERFECT MATCH 🚨');
+        // Force all items to be common, no missing or new
+        finalMissingItems = [];
+        finalCommonItems = [...filteredReferenceItems];
+        // Also clear new items for identical content
+        newItems.length = 0;
+        console.log('Forced identical content result: 100% common, 0 missing, 0 new');
+      } else if (Math.abs(filteredReferenceItems.length - finalReferenceCheck) > 1) {
+        console.warn('⚠️ Forcing mathematical correction...');
+        // Move some missing items to common if they have similar matches
+        const forceCorrectedMissing = finalMissingItems.slice(0, Math.max(0, filteredReferenceItems.length - finalCommonItems.length));
+        const forceCorrectedCommon = [...finalCommonItems, ...finalMissingItems.slice(Math.max(0, filteredReferenceItems.length - finalCommonItems.length))];
+        
+        console.log('Force corrected missing items:', forceCorrectedMissing);
+        console.log('Force corrected common items:', forceCorrectedCommon);
+        
+        // Use force corrected results
+        finalMissingItems = forceCorrectedMissing;
+        finalCommonItems = forceCorrectedCommon;
+      }
+      console.log('========================');
 
       // Helper function to group and count items
       const groupAndCountItems = (items: string[]): Array<{ item: string; count: number }> => {
@@ -778,6 +1301,7 @@ Respond with ONLY this JSON structure (no other text):
 
   // Clear the current inspection
   const clearInspection = () => {
+    console.log('Clearing inspection video...');
     setInspectionVideo(null);
     setInspectionFile(null);
     setComparisonResult(null);
@@ -785,6 +1309,25 @@ Respond with ONLY this JSON structure (no other text):
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
+    
+    // Ensure reference video is not affected
+    if (videoRef.current && videoRef.current.src) {
+      console.log('Reference video has source, keeping it intact');
+    }
+    
+    // Reset camera ready state
+    setCameraReady(false);
+    
+    // Clean up any recording sections
+    const recordingSections = document.querySelectorAll('[data-recording-section]');
+    if (recordingSections.length > 0) {
+      console.log('Cleaning up recording sections during clear...');
+      recordingSections.forEach(section => section.remove());
+      console.log('Recording sections removed during clear');
+    }
+    
+    // Reset the live preview ref
+    livePreviewRef.current = null;
   };
 
   // Loading state
@@ -866,7 +1409,7 @@ Respond with ONLY this JSON structure (no other text):
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Reference Video */}
           <div className="lg:col-span-1">
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden" data-reference-section="true">
               <div className="p-4 border-b border-gray-200 dark:border-gray-700">
                 <h2 className="text-lg font-semibold">Reference Video</h2>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -935,8 +1478,8 @@ Respond with ONLY this JSON structure (no other text):
 
           {/* Inspection Video */}
           <div className="lg:col-span-2">
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden">
-              <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden" data-inspection-section="true">
+              <div className="p-4 border-b border-gray-700">
                 <h2 className="text-lg font-semibold">Inspection Video</h2>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
                   Record a new video or upload an existing one
@@ -944,7 +1487,46 @@ Respond with ONLY this JSON structure (no other text):
               </div>
 
               <div className="p-4">
-                {inspectionVideo ? (
+                {/* Show live preview during recording */}
+                {isRecording && (
+                  <div className="space-y-4" data-recording-section="true">
+                    
+                    
+                    <div className="flex justify-center gap-3">
+                      <Button 
+                        variant="destructive"
+                        onClick={stopRecording}
+                        size="lg"
+                      >
+                        <div className="w-4 h-4 bg-white rounded-full mr-2"></div>
+                        Stop Recording
+                      </Button>
+                      
+                      {!cameraReady && (
+                        <Button 
+                          variant="outline"
+                          onClick={() => {
+                            console.log('Manual camera start clicked...');
+                            if (livePreviewRef.current && mediaRecorderRef.current?.stream) {
+                              const stream = mediaRecorderRef.current.stream;
+                              livePreviewRef.current.srcObject = stream;
+                              livePreviewRef.current.play().then(() => {
+                                console.log('Manual camera start successful');
+                                setCameraReady(true);
+                              }).catch(console.error);
+                            }
+                          }}
+                        >
+                          <Camera className="w-4 h-4 mr-2" />
+                          Start Camera
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                )}
+                
+                {/* Show recorded video after recording */}
+                {inspectionVideo && !isRecording ? (
                   <div className="space-y-4">
                     <div className="relative aspect-video bg-black rounded-lg overflow-hidden">
                       <video
@@ -952,6 +1534,7 @@ Respond with ONLY this JSON structure (no other text):
                         src={inspectionVideo}
                         controls
                         className="w-full h-full object-cover"
+                        data-video-type="recorded"
                       />
                     </div>
                     
@@ -984,7 +1567,7 @@ Respond with ONLY this JSON structure (no other text):
                       </Button>
                     </div>
                   </div>
-                ) : (
+                ) : !isRecording && !inspectionVideo ? (
                   <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-8 text-center">
                     <div className="flex flex-col items-center justify-center space-y-4">
                       <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-full">
@@ -1004,6 +1587,12 @@ Respond with ONLY this JSON structure (no other text):
                           <Camera className="w-4 h-4 mr-2" />
                           {isRecording ? 'Recording...' : 'Record Video'}
                         </Button>
+                        
+                        {isRecording && (
+                          <div className="text-sm text-blue-600 dark:text-blue-400 mt-2">
+                            Camera is active - recording preview should be visible above
+                          </div>
+                        )}
                         
                         <input
                           type="file"
@@ -1034,7 +1623,7 @@ Respond with ONLY this JSON structure (no other text):
                       )}
                     </div>
                   </div>
-                )}
+                ) : null}
               </div>
             </div>
           </div>

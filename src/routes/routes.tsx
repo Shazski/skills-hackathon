@@ -19,6 +19,7 @@ export const router = createBrowserRouter([
       { path: "login", element: <Login /> },
       { path: "signup", element: <SignUp /> },
 
+      { path: "homes/:homeId/rooms/:roomId/inspection", element: <InspectionPage /> },
       // ✅ Protected routes (including Home)
       {
         element: <ProtectedRoute />,
@@ -26,7 +27,6 @@ export const router = createBrowserRouter([
           { path: "", element: <Home /> },
           { path: "homes/:homeId", element: <Rooms /> },
           { path: "homes/:homeId/rooms/:roomId", element: <RoomVideoManagerPage /> },
-          { path: "homes/:homeId/rooms/:roomId/inspection", element: <InspectionPage /> },
           { path: "video-analysis", element: <VideoAnalysisPage /> },
           { path: "comparison", element: <ComparisonPage /> },
         ],

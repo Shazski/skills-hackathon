@@ -367,6 +367,10 @@ const RoomVideoManagerPage = () => {
   };
 
   const analyzeVideoWithAI = async (videoUrl: string, videoIndex: number, videoFile?: File) => {
+    if (!roomId) {
+      throw new Error('Room ID is missing for analysis.');
+    }
+    
     setAnalyzingVideos(prev => new Set(prev).add(videoUrl));
     setVideoProgress(prev => ({ ...prev, [videoUrl]: 5 }));
     let analysisId = '';
@@ -399,7 +403,40 @@ const RoomVideoManagerPage = () => {
       setVideoProgress(prev => ({ ...prev, [videoUrl]: 60 }));
       
       const openaiContent = [
-        { type: 'text', text: 'Please analyze these video frames and list all the items you can see.' },
+        { 
+          type: 'text', 
+          text: `🚨 ULTRA-AGGRESSIVE COUNTING REQUIREMENTS 🚨
+- YOU MUST COUNT EVERY SINGLE ITEM with PERFECT ACCURACY
+- ALWAYS provide exact counts using DIGITS (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, etc.)
+- NEVER use vague terms like "several", "many", "few", "some", "a few", "multiple", "various"
+- NEVER use written words like "three", "five", "two", "four", "six", "seven", "eight"
+- COUNT INDIVIDUALLY: Look at each item and count them one by one
+- BE EXTREMELY PRECISE: If you see 7 bowls, say "7 bowls", not "several bowls"
+- Examples of CORRECT format:
+  * "7 white ceramic bowls on kitchen counter"
+  * "4 black wooden chairs around dining table"
+  * "3 blue throw pillows on sofa"
+  * "6 white plates in dish rack"
+  * "2 coffee mugs on table"
+  * "5 books on shelf"
+- Examples of INCORRECT format:
+  * "several white bowls" ❌
+  * "many chairs" ❌
+  * "three white bowls" ❌
+  * "multiple cups" ❌
+  * "various items" ❌
+
+🚨 FINAL COUNTING INSTRUCTIONS 🚨
+- COUNT EVERY ITEM INDIVIDUALLY - don't estimate, don't guess
+- If you see 8 plates, count them one by one and say "8 plates"
+- If you see 12 books, count them individually and say "12 books"
+- BE EXTREMELY THOROUGH in counting - don't miss any items
+- Look carefully at each surface, corner, shelf, and area
+- Count items even if they're partially hidden or in shadows
+- Your accuracy in counting is CRITICAL for room inspection
+
+Please analyze these video frames and list all the items you can see with EXACT counts using DIGITS.`
+        },
         ...frameImageUrls.map(url => ({ type: 'image_url', image_url: { url } }))
       ];
 
@@ -409,10 +446,10 @@ const RoomVideoManagerPage = () => {
         body: JSON.stringify({
           model: "gpt-4o",
           messages: [
-            { role: "system", content: "You are an expert at analyzing video content and identifying objects. Format your response as a clean list with each item on a separate line." },
+            { role: "system", content: "You are an expert room inspector with exceptional attention to detail. You MUST provide exact counts using DIGITS for all items. Format your response as a clean list with each item on a separate line." },
             { role: "user", content: openaiContent },
           ],
-          max_tokens: 1000,
+          max_tokens: 2000,
         }),
       });
 
@@ -424,6 +461,28 @@ const RoomVideoManagerPage = () => {
       const data = await res.json();
       const analysisResult = data.choices?.[0]?.message?.content || "";
       const items = analysisResult.split('\n').map((s: string) => s.replace(/^[-•*]\s*/, '').trim()).filter(Boolean);
+      
+      // Validate that items have numeric counts
+      const validatedItems = items.map((item: string) => {
+        // Check if item starts with a number
+        const startsWithNumber = /^\d+/.test(item);
+        if (!startsWithNumber) {
+          console.warn(`⚠️ Item missing numeric count: "${item}" - AI should provide exact count`);
+        }
+        return item;
+      });
+
+      // Log validation results
+      const itemsWithCounts = validatedItems.filter((item: string) => /^\d+/.test(item));
+      const itemsWithoutCounts = validatedItems.filter((item: string) => !/^\d+/.test(item));
+      
+      console.log(`=== COUNTING VALIDATION ===`);
+      console.log(`Items with numeric counts: ${itemsWithCounts.length}`);
+      console.log(`Items missing counts: ${itemsWithoutCounts.length}`);
+      if (itemsWithoutCounts.length > 0) {
+        console.warn(`Items missing counts:`, itemsWithoutCounts);
+      }
+      console.log(`===========================`);
       
       setVideoProgress(prev => ({ ...prev, [videoUrl]: 95 }));
 
