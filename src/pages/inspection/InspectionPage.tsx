@@ -270,6 +270,40 @@ Format your response as a clean list with each item clearly described.`
 
   // Enhanced comparison logic with intelligent matching
   const compareItems = (referenceItems: string[], inspectionItems: string[]): ComparisonResult => {
+    // Filter out generic AI responses and non-item text
+    const filterGenericResponses = (items: string[]): string[] => {
+      const genericPatterns = [
+        /i'm sorry/i,
+        /i can't identify/i,
+        /please share/i,
+        /if you have other/i,
+        /i'll be happy to help/i,
+        /based only on this/i,
+        /please provide/i,
+        /unfortunately/i,
+        /i cannot/i,
+        /i'm unable/i,
+        /no items detected/i,
+        /no visible items/i,
+        /nothing visible/i,
+        /cannot see/i,
+        /unable to identify/i
+      ];
+      
+      return items.filter(item => {
+        const itemLower = item.toLowerCase();
+        return !genericPatterns.some(pattern => pattern.test(itemLower)) && 
+               item.trim().length > 5 && // Filter out very short responses
+               !item.includes('...') && // Filter out incomplete responses
+               !item.startsWith('I\'m sorry') &&
+               !item.startsWith('Unfortunately') &&
+               !item.startsWith('I cannot') &&
+               !item.startsWith('I\'m unable');
+      });
+    };
+
+    const filteredReferenceItems = filterGenericResponses(referenceItems);
+    const filteredInspectionItems = filterGenericResponses(inspectionItems);
     // Helper function to extract key words from item description
     const extractKeyWords = (item: string): string[] => {
       const stopWords = new Set(['the','and','or','with','on','in','at','to','for','of','a','an','near','by','into','from','over','under']);
@@ -341,8 +375,8 @@ Format your response as a clean list with each item clearly described.`
     };
 
     // Create copies for processing
-    const remainingReference = [...referenceItems];
-    const remainingInspection = [...inspectionItems];
+    const remainingReference = [...filteredReferenceItems];
+    const remainingInspection = [...filteredInspectionItems];
     
     const matchedPairs: Array<{ reference: string; inspection: string; similarity: number }> = [];
     const missingItems: string[] = [];
@@ -397,13 +431,13 @@ Format your response as a clean list with each item clearly described.`
       missingItems,
       newItems,
       commonItems,
-      inspectionItems: inspectionItems,
-      referenceItems: referenceItems,
+      inspectionItems: filteredInspectionItems,
+      referenceItems: filteredReferenceItems,
       missingItemsCount: missingItems.length,
       newItemsCount: newItems.length,
       commonItemsCount: commonItems.length,
-      totalReferenceItems: referenceItems.length,
-      totalInspectionItems: inspectionItems.length
+      totalReferenceItems: filteredReferenceItems.length,
+      totalInspectionItems: filteredInspectionItems.length
     };
   };
 
