@@ -81,14 +81,40 @@ const InspectionPage = () => {
         setRoom(currentRoom || null);
 
         if (currentRoom) {
-          console.log('Fetching analyses for roomId:', roomId);
-          const analyses = await getCompletedAnalysesByRoomId(roomId);
-          console.log('Found analyses:', analyses);
-          setAvailableReferenceVideos(analyses);
+          console.log('Current room:', currentRoom);
+          console.log('Room videos:', currentRoom.videos);
+          
+          if (!roomId) {
+            console.error('roomId is undefined or null');
+            setError('Room ID is missing');
+            return;
+          }
+          
+          // Get room's videos first
+          const roomVideos = currentRoom.videos || [];
+          console.log('Room videos count:', roomVideos.length);
+          
+          if (roomVideos.length === 0) {
+            console.log('No videos in room');
+            setAvailableReferenceVideos([]);
+            return;
+          }
+          
+          // Get analyses for each room video
+          const allAnalyses = await getCompletedAnalysesByRoomId(roomId);
+          console.log('All analyses for room:', allAnalyses);
+          
+          // Filter analyses to only include those that match room videos
+          const roomVideoAnalyses = allAnalyses.filter(analysis => 
+            roomVideos.includes(analysis.videoUrl) || roomVideos.includes(analysis.cloudinaryUrl || '')
+          );
+          
+          console.log('Room video analyses:', roomVideoAnalyses);
+          setAvailableReferenceVideos(roomVideoAnalyses);
           
           // Automatically select the most recent analysis if available
-          if (analyses.length > 0) {
-            setSelectedRoomVideo(analyses[0]);
+          if (roomVideoAnalyses.length > 0) {
+            setSelectedRoomVideo(roomVideoAnalyses[0]);
           }
         }
       } catch (err) {
@@ -657,12 +683,6 @@ Format your response as a clean list with each item clearly described.`
             </div>
           )}
           
-          {/* Debug Info - Remove this in production */}
-          <div className="bg-gray-50 dark:bg-gray-800/20 px-4 py-2 rounded-lg text-xs">
-            <p className="text-gray-600 dark:text-gray-400">
-              Room ID: {roomId} | Videos found: {availableReferenceVideos.length}
-            </p>
-          </div>
         </div>
 
         {/* Main Content */}
@@ -694,12 +714,15 @@ Format your response as a clean list with each item clearly described.`
                       >
                         <div className="flex items-center mb-2">
                           <Video className="w-5 h-5 text-blue-500 mr-3" />
-                          <div>
+                          <div className="flex-1">
                             <p className="font-medium">
                               {new Date(video.completedAt?.toDate()).toLocaleDateString()}
                             </p>
                             <p className="text-sm text-gray-500 dark:text-gray-400">
                               {video.items?.length || 0} items detected
+                            </p>
+                            <p className="text-xs text-gray-400 dark:text-gray-500">
+                              Room ID: {video.roomId}
                             </p>
                           </div>
                         </div>
