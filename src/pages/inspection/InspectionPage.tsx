@@ -36,6 +36,9 @@ interface ComparisonResult {
   commonItemsCount: number;
   totalReferenceItems: number;
   totalInspectionItems: number;
+  groupedMissingItems: Array<{ item: string; count: number }>;
+  groupedNewItems: Array<{ item: string; count: number }>;
+  groupedCommonItems: Array<{ item: string; count: number }>;
 }
 
 
@@ -190,22 +193,21 @@ const InspectionPage = () => {
       const openaiContent = [
         {
           type: "text" as const,
-          text: `You are an expert at analyzing room content and identifying objects, furniture, and items. 
+          text: `You are an expert room inspector with exceptional attention to detail. Your task is to analyze these video frames and list EVERY visible item with maximum precision.
 
-Your task is to analyze the provided video frames and create a comprehensive list of all visible items, objects, furniture, appliances, decorations, and any other notable elements you can identify.
-
-IMPORTANT INSTRUCTIONS:
-- List each item on a separate line
-- Be specific and descriptive (e.g., "brown leather sofa" instead of just "sofa")
-- Include furniture, electronics, decorations, appliances, etc.
-- Mention the approximate location or context if relevant
-- Focus on items that would be important for room inspection
-- Count items if there are multiple of the same type (e.g., "2 dining chairs", "3 throw pillows")
-- Be thorough and detailed in your analysis
+CRITICAL INSTRUCTIONS FOR MAXIMUM DETAIL:
+- List EVERY single item you can see, no matter how small or seemingly insignificant
+- Include specific details: exact colors, materials, sizes, locations, quantities, patterns
+- Be extremely thorough - don't miss any objects, furniture, decorative items, or details
+- Consider items in: corners, on surfaces, hanging, placed around, partially visible, in shadows
+- Look for: clothing items, accessories, electronics, books, papers, containers, plants, artwork
+- Pay attention to: wall decorations, floor items, table surfaces, shelves, drawers, beds, chairs
+- Be precise about: exact locations, orientations, conditions, brands, styles
+- Count multiple items: "3 white cups on counter", "2 black chairs at table"
 
 Reference items from previous analysis (for context): ${referenceItems.join(', ')}
 
-Format your response as a clean list with each item clearly described.`
+Format your response as a numbered list with each item on a separate line. Be extremely detailed and thorough.`
         },
         ...frames.map(frame => ({
           type: "image_url" as const,
@@ -233,7 +235,7 @@ Format your response as a clean list with each item clearly described.`
               content: openaiContent,
             },
           ],
-          max_tokens: 1500,
+          max_tokens: 3000,
         }),
       });
 
@@ -268,177 +270,303 @@ Format your response as a clean list with each item clearly described.`
     }
   };
 
-  // Enhanced comparison logic with intelligent matching
-  const compareItems = (referenceItems: string[], inspectionItems: string[]): ComparisonResult => {
-    // Filter out generic AI responses and non-item text
-    const filterGenericResponses = (items: string[]): string[] => {
-      const genericPatterns = [
-        /i'm sorry/i,
-        /i can't identify/i,
-        /please share/i,
-        /if you have other/i,
-        /i'll be happy to help/i,
-        /based only on this/i,
-        /please provide/i,
-        /unfortunately/i,
-        /i cannot/i,
-        /i'm unable/i,
-        /no items detected/i,
-        /no visible items/i,
-        /nothing visible/i,
-        /cannot see/i,
-        /unable to identify/i
-      ];
-      
-      return items.filter(item => {
-        const itemLower = item.toLowerCase();
-        return !genericPatterns.some(pattern => pattern.test(itemLower)) && 
-               item.trim().length > 5 && // Filter out very short responses
-               !item.includes('...') && // Filter out incomplete responses
-               !item.startsWith('I\'m sorry') &&
-               !item.startsWith('Unfortunately') &&
-               !item.startsWith('I cannot') &&
-               !item.startsWith('I\'m unable');
-      });
-    };
+  // AI-powered comparison logic - much more accurate than frontend rules
+  const compareItemsWithAI = async (referenceItems: string[], inspectionItems: string[]): Promise<ComparisonResult> => {
+    try {
+      console.log('=== USING AI FOR COMPARISON ===');
+      console.log('Reference Items:', referenceItems);
+      console.log('Inspection Items:', inspectionItems);
 
-    const filteredReferenceItems = filterGenericResponses(referenceItems);
-    const filteredInspectionItems = filterGenericResponses(inspectionItems);
-    // Helper function to extract key words from item description
-    const extractKeyWords = (item: string): string[] => {
-      const stopWords = new Set(['the','and','or','with','on','in','at','to','for','of','a','an','near','by','into','from','over','under']);
-      const removeDescriptors = (text: string) => text
-        .replace(/on the (table|desk|counter|floor|wall)/g, '')
-        .replace(/near the (sink|window|door)/g, '')
-        .replace(/in the (room|kitchen|hall|bedroom)/g, '')
-        .replace(/with.*?accent/g, '')
-        .replace(/black |white |red |blue |green |yellow |brown |gray |grey /g, '')
-        .replace(/plastic |metal |wooden |glass |ceramic /g, '')
-        .replace(/large |small |big |tiny |medium /g, '')
-        .replace(/new |old |used /g, '')
-        .replace(/\(.*?\)/g, '')
-        .replace(/[^\w\s]/g, ' ');
-
-      const singularize = (w: string) => {
-        const map: Record<string,string> = { dishes: 'dish', knives: 'knife', lives: 'life', leaves: 'leaf', men: 'man', women: 'woman', children: 'child', spoons: 'spoon', bottles: 'bottle', towels: 'towel' };
-        if (map[w]) return map[w];
-        if (w.endsWith('ies')) return w.slice(0,-3)+'y';
-        if (w.endsWith('ses') || w.endsWith('xes')) return w.slice(0,-2);
-        if (w.endsWith('s') && !w.endsWith('ss')) return w.slice(0,-1);
-        return w;
+      // Filter out generic AI responses
+      const filterGenericResponses = (items: string[]): string[] => {
+        const genericPatterns = [
+          /i'm sorry/i,
+          /i can't identify/i,
+          /please share/i,
+          /if you have other/i,
+          /i'll be happy to help/i,
+          /based only on this/i,
+          /please provide/i,
+          /unfortunately/i,
+          /i cannot/i,
+          /i'm unable/i,
+          /no items detected/i,
+          /no visible items/i,
+          /nothing visible/i,
+          /cannot see/i,
+          /unable to identify/i
+        ];
+        
+        return items.filter(item => {
+          const itemLower = item.toLowerCase();
+          return !genericPatterns.some(pattern => pattern.test(itemLower)) && 
+                 item.trim().length > 5 &&
+                 !item.includes('...') &&
+                 !item.startsWith('I\'m sorry') &&
+                 !item.startsWith('Unfortunately') &&
+                 !item.startsWith('I cannot') &&
+                 !item.startsWith('I\'m unable');
+        });
       };
 
-      const normalized = removeDescriptors(item.toLowerCase())
-        .trim()
-        .split(/\s+/)
-        .map(singularize)
-        .filter(word => word.length > 2 && !stopWords.has(word));
+      const filteredReferenceItems = filterGenericResponses(referenceItems);
+      const filteredInspectionItems = filterGenericResponses(inspectionItems);
 
-      return [...new Set(normalized)];
-    };
+      // Check if content might be identical or very similar
+      const isLikelyIdentical = filteredReferenceItems.length === filteredInspectionItems.length && 
+        filteredReferenceItems.some(refItem => 
+          filteredInspectionItems.some(inspItem => 
+            refItem.toLowerCase().includes(inspItem.toLowerCase().split(' ')[0]) || 
+            inspItem.toLowerCase().includes(refItem.toLowerCase().split(' ')[0])
+          )
+        );
 
-    // Helper function to calculate similarity between two items
-    const calculateSimilarity = (item1: string, item2: string): number => {
-      const w1 = extractKeyWords(item1);
-      const w2 = extractKeyWords(item2);
-      if (w1.length === 0 || w2.length === 0) return 0;
+      // Create balanced prompt for AI to accurately categorize items without over-aggression
+      const prompt = `You are an expert room inspector with PERFECT accuracy. You are comparing a reference video with an inspection video to accurately categorize items.
 
-      // Jaccard similarity of keyword sets
-      const common = w1.filter(w => w2.includes(w));
-      const union = new Set([...w1, ...w2]);
-      const jaccard = common.length / union.size;
+${isLikelyIdentical ? '⚠️ NOTE: This appears to be similar content. Be accurate in categorization. ⚠️' : ''}
 
-      // Head noun boost (last noun-like token)
-      const head = (arr: string[]) => arr[arr.length - 1] || '';
-      const headBoost = head(w1) && head(w1) === head(w2) ? 0.2 : 0;
+REFERENCE VIDEO ITEMS (original room state):
+${filteredReferenceItems.map((item, i) => `${i + 1}. ${item}`).join('\n')}
 
-      // Containment bonus: one description mostly contained in the other (>60%)
-      const containBonus = (common.length / Math.min(w1.length, w2.length)) >= 0.6 ? 0.2 : 0;
+INSPECTION VIDEO ITEMS (current room state):
+${filteredInspectionItems.map((item, i) => `${i + 1}. ${item}`).join('\n')}
 
-      return Math.min(1, jaccard + headBoost + containBonus);
-    };
+ACCURATE CATEGORIZATION RULES:
 
-    // Helper function to find best match for an item
-    const findBestMatch = (item: string, itemList: string[], threshold: number = 0.35): string | null => {
-      let bestMatch: string | null = null;
-      let bestSimilarity = 0;
+1. COMMON ITEMS - items that are the SAME physical object:
+   - Must be the exact same object, not just similar types
+   - Examples of what IS common:
+     * "black shirt on bed" vs "black shirt on bed" = COMMON (identical)
+     * "cup on table" vs "cup on table" = COMMON (identical)
+     * "lamp on side table" vs "lamp on side table" = COMMON (identical)
+   - Examples of what is NOT common (different objects):
+     * "black shirt on bed" vs "red shirt on chair" = NOT COMMON (different objects)
+     * "coffee mug on table" vs "water glass on counter" = NOT COMMON (different objects)
+     * "lamp on side table" vs "floor lamp in corner" = NOT COMMON (different objects)
+
+2. MISSING ITEMS - items from reference that are NOT in inspection:
+   - Item must be completely absent from inspection
+   - Examples:
+     * "black shirt on bed" in reference, no shirts in inspection = MISSING
+     * "coffee mug on table" in reference, no cups/mugs in inspection = MISSING
+
+3. NEW ITEMS - items in inspection that were NOT in reference:
+   - Must be completely new objects
+   - Examples:
+     * "red book on shelf" in inspection, no books in reference = NEW
+     * "blue vase on table" in inspection, no vases in reference = NEW
+
+PRECISION REQUIREMENTS:
+- Be EXACT in your categorization
+- Don't assume items are the same just because they're similar types
+- Each item should be in exactly one category
+- When in doubt, categorize based on exact descriptions, not assumptions
+
+Respond with ONLY this JSON structure (no other text):
+{
+  "missingItems": ["exact item description from reference"],
+  "newItems": ["exact item description from inspection"],
+  "commonItems": ["exact item description from reference"]
+}`;
+
+      console.log('Sending to AI for comparison...');
       
-      for (const candidate of itemList) {
-        const similarity = calculateSimilarity(item, candidate);
-        if (similarity > bestSimilarity && similarity >= threshold) {
-          bestSimilarity = similarity;
-          bestMatch = candidate;
+      // Call OpenAI API for comparison
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_OPENAI_API_KEY}`
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o',
+          messages: [
+            {
+              role: 'system',
+              content: 'You are a precise room inspection expert. Always respond with valid JSON.'
+            },
+            {
+              role: 'user',
+              content: prompt
+            }
+          ],
+          temperature: 0.1,
+          max_tokens: 2000
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`OpenAI API error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const aiResponse = data.choices[0].message.content;
+      
+      console.log('AI Response:', aiResponse);
+      
+      // Parse AI response
+      let parsedResponse;
+      try {
+        // Extract JSON from response if it contains extra text
+        const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          parsedResponse = JSON.parse(jsonMatch[0]);
+        } else {
+          parsedResponse = JSON.parse(aiResponse);
+        }
+      } catch (parseError) {
+        console.error('Failed to parse AI response:', parseError);
+        console.log('Raw AI response:', aiResponse);
+        throw new Error('AI response could not be parsed');
+      }
+
+      const { missingItems = [], newItems = [], commonItems = [] } = parsedResponse;
+
+      // Log AI response for debugging
+      console.log('=== AI RESPONSE ===');
+      console.log('Missing Items:', missingItems);
+      console.log('New Items:', newItems);
+      console.log('Common Items:', commonItems);
+      console.log('==================');
+
+      // Post-process to catch only truly identical or very similar items
+      const correctedMissingItems: string[] = [];
+      const correctedCommonItems = [...commonItems];
+
+      for (const missingItem of missingItems) {
+        // Check if this "missing" item might actually exist in inspection items
+        const hasSimilarItem = filteredInspectionItems.some(inspItem => {
+          const missingLower = missingItem.toLowerCase();
+          const inspLower = inspItem.toLowerCase();
+          
+          // Check for exact or very close matches
+          if (missingLower === inspLower) return true;
+          
+          // Check for minor variations (same object, different description)
+          const missingWords = missingLower.split(/\s+/).filter((word: string) => word.length > 2);
+          const inspWords = inspLower.split(/\s+/).filter((word: string) => word.length > 2);
+          
+          // Count matching significant words
+          const matchingWords = missingWords.filter((word: string) => 
+            inspWords.some((inspWord: string) => 
+              word === inspWord || 
+              (word.length > 4 && inspWord.length > 4 && 
+               (word.includes(inspWord) || inspWord.includes(word)))
+            )
+          );
+          
+          // Require at least 2 matching significant words for similarity
+          const similarityScore = matchingWords.length / Math.max(missingWords.length, inspWords.length);
+          
+          // Only consider similar if similarity is high (same object, different description)
+          return similarityScore >= 0.6;
+        });
+
+        if (hasSimilarItem) {
+          console.log(`⚠️ Correcting "${missingItem}" from MISSING to COMMON (found similar item)`);
+          correctedCommonItems.push(missingItem);
+        } else {
+          correctedMissingItems.push(missingItem);
         }
       }
-      
-      return bestMatch;
-    };
 
-    // Create copies for processing
-    const remainingReference = [...filteredReferenceItems];
-    const remainingInspection = [...filteredInspectionItems];
-    
-    const matchedPairs: Array<{ reference: string; inspection: string; similarity: number }> = [];
-    const missingItems: string[] = [];
-    const newItems: string[] = [];
-    const commonItems: string[] = [];
+      // Use corrected results
+      const finalMissingItems = correctedMissingItems;
+      const finalCommonItems = correctedCommonItems;
 
-    // First pass: Find exact matches
-    for (let i = remainingReference.length - 1; i >= 0; i--) {
-      const refItem = remainingReference[i];
-      const inspectionIndex = remainingInspection.findIndex(inspItem => 
-        refItem.toLowerCase().trim() === inspItem.toLowerCase().trim()
-      );
-      
-      if (inspectionIndex !== -1) {
-        matchedPairs.push({
-          reference: refItem,
-          inspection: remainingInspection[inspectionIndex],
-          similarity: 1.0
+      // Helper function to group and count items
+      const groupAndCountItems = (items: string[]): Array<{ item: string; count: number }> => {
+        const itemCounts: { [key: string]: number } = {};
+        
+        items.forEach(item => {
+          const normalizedItem = item.toLowerCase().replace(/\s+/g, ' ').trim();
+          if (itemCounts[normalizedItem]) {
+            itemCounts[normalizedItem]++;
+          } else {
+            itemCounts[normalizedItem] = 1;
+          }
         });
-        commonItems.push(refItem);
-        remainingReference.splice(i, 1);
-        remainingInspection.splice(inspectionIndex, 1);
-      }
+        
+        return Object.entries(itemCounts).map(([item, count]) => ({
+          item: item.charAt(0).toUpperCase() + item.slice(1),
+          count
+        }));
+      };
+
+      const groupedMissingItems = groupAndCountItems(finalMissingItems);
+      const groupedNewItems = groupAndCountItems(newItems);
+      const groupedCommonItems = groupAndCountItems(finalCommonItems);
+
+      console.log('=== FINAL RESULTS ===');
+      console.log(`Missing Items (${finalMissingItems.length}):`, finalMissingItems);
+      console.log(`New Items (${newItems.length}):`, newItems);
+      console.log(`Common Items (${finalCommonItems.length}):`, finalCommonItems);
+      console.log('==================');
+
+      return {
+        missingItems: finalMissingItems,
+        newItems,
+        commonItems: finalCommonItems,
+        inspectionItems: filteredInspectionItems,
+        referenceItems: filteredReferenceItems,
+        missingItemsCount: finalMissingItems.length,
+        newItemsCount: newItems.length,
+        commonItemsCount: finalCommonItems.length,
+        totalReferenceItems: filteredReferenceItems.length,
+        totalInspectionItems: filteredInspectionItems.length,
+        groupedMissingItems,
+        groupedNewItems,
+        groupedCommonItems
+      };
+
+         } catch (error) {
+       console.error('AI comparison failed, falling back to frontend logic:', error);
+       
+       // Fallback to simple frontend comparison if AI fails
+       const missingItems = [...referenceItems];
+       const newItems = [...inspectionItems];
+       const commonItems: string[] = [];
+
+       // Helper function for fallback
+       const groupAndCountItems = (items: string[]): Array<{ item: string; count: number }> => {
+         const itemCounts: { [key: string]: number } = {};
+         
+         items.forEach(item => {
+           const normalizedItem = item.toLowerCase().replace(/\s+/g, ' ').trim();
+           if (itemCounts[normalizedItem]) {
+             itemCounts[normalizedItem]++;
+           } else {
+             itemCounts[normalizedItem] = 1;
+           }
+         });
+         
+         return Object.entries(itemCounts).map(([item, count]) => ({
+           item: item.charAt(0).toUpperCase() + item.slice(1),
+           count
+         }));
+       };
+
+       const groupedMissingItems = groupAndCountItems(missingItems);
+       const groupedNewItems = groupAndCountItems(newItems);
+       const groupedCommonItems = groupAndCountItems(commonItems);
+
+      return {
+        missingItems,
+        newItems,
+        commonItems,
+        inspectionItems,
+        referenceItems,
+        missingItemsCount: missingItems.length,
+        newItemsCount: newItems.length,
+        commonItemsCount: commonItems.length,
+        totalReferenceItems: referenceItems.length,
+        totalInspectionItems: inspectionItems.length,
+        groupedMissingItems,
+        groupedNewItems,
+        groupedCommonItems
+      };
     }
-
-    // Second pass: Find similar matches
-    for (let i = remainingReference.length - 1; i >= 0; i--) {
-      const refItem = remainingReference[i];
-      const bestMatch = findBestMatch(refItem, remainingInspection, 0.4);
-      
-      if (bestMatch) {
-        const similarity = calculateSimilarity(refItem, bestMatch);
-        matchedPairs.push({
-          reference: refItem,
-          inspection: bestMatch,
-          similarity
-        });
-        commonItems.push(refItem); // Use reference item as the common name
-        remainingReference.splice(i, 1);
-        const matchIndex = remainingInspection.findIndex(item => item === bestMatch);
-        if (matchIndex !== -1) {
-          remainingInspection.splice(matchIndex, 1);
-        }
-      }
-    }
-
-    // Remaining items are truly missing or new
-    missingItems.push(...remainingReference);
-    newItems.push(...remainingInspection);
-
-    return {
-      missingItems,
-      newItems,
-      commonItems,
-      inspectionItems: filteredInspectionItems,
-      referenceItems: filteredReferenceItems,
-      missingItemsCount: missingItems.length,
-      newItemsCount: newItems.length,
-      commonItemsCount: commonItems.length,
-      totalReferenceItems: filteredReferenceItems.length,
-      totalInspectionItems: filteredInspectionItems.length
-    };
   };
 
   // Analyze the inspection video
@@ -467,10 +595,10 @@ Format your response as a clean list with each item clearly described.`
       setAnalysisProgress(40);
       const detectedItems = await analyzeFramesWithOpenAI(frames, selectedRoomVideo.items || []);
       
-      // Step 3: Compare with reference video items
+      // Step 3: Compare with reference video items using AI
       setAnalysisProgress(60);
       const referenceItems = selectedRoomVideo.items || [];
-      const comparison = compareItems(referenceItems, detectedItems);
+      const comparison = await compareItemsWithAI(referenceItems, detectedItems);
       
       setAnalysisProgress(80);
       setComparisonResult(comparison);
@@ -592,31 +720,46 @@ Format your response as a clean list with each item clearly described.`
       addKeyValue('Total Items', String(comparisonResult.totalInspectionItems));
 
       // Detailed Sections
-      addSectionHeader(`Missing Items (${comparisonResult.missingItems.length})`);
-      if (comparisonResult.missingItems.length === 0) {
+      addSectionHeader(`Missing Items (${comparisonResult.missingItemsCount})`);
+      if (comparisonResult.groupedMissingItems.length === 0) {
         ensureSpace(lineHeight);
         pdf.text('No missing items found. All reference items are present.', marginLeft, cursorY);
         cursorY += lineHeight;
       } else {
-        addBulletList(comparisonResult.missingItems, [220, 38, 38]);
+        // Add grouped missing items with counts
+        comparisonResult.groupedMissingItems.forEach(itemData => {
+          const itemText = itemData.count > 1 ? `${itemData.item} × ${itemData.count}` : itemData.item;
+          pdf.text(`• ${itemText}`, marginLeft, cursorY);
+          cursorY += lineHeight;
+        });
       }
 
-      addSectionHeader(`New Items (${comparisonResult.newItems.length})`);
-      if (comparisonResult.newItems.length === 0) {
+      addSectionHeader(`New Items (${comparisonResult.newItemsCount})`);
+      if (comparisonResult.groupedNewItems.length === 0) {
         ensureSpace(lineHeight);
         pdf.text('No new items found in the inspection.', marginLeft, cursorY);
         cursorY += lineHeight;
       } else {
-        addBulletList(comparisonResult.newItems, [217, 119, 6]);
+        // Add grouped new items with counts
+        comparisonResult.groupedNewItems.forEach(itemData => {
+          const itemText = itemData.count > 1 ? `${itemData.item} × ${itemData.count}` : itemData.item;
+          pdf.text(`• ${itemText}`, marginLeft, cursorY);
+          cursorY += lineHeight;
+        });
       }
 
-      addSectionHeader(`Common Items (${comparisonResult.commonItems.length})`);
-      if (comparisonResult.commonItems.length === 0) {
+      addSectionHeader(`Common Items (${comparisonResult.commonItemsCount})`);
+      if (comparisonResult.groupedCommonItems.length === 0) {
         ensureSpace(lineHeight);
         pdf.text('No common items found between the reference and inspection.', marginLeft, cursorY);
         cursorY += lineHeight;
       } else {
-        addBulletList(comparisonResult.commonItems, [22, 163, 74]);
+        // Add grouped common items with counts
+        comparisonResult.groupedCommonItems.forEach(itemData => {
+          const itemText = itemData.count > 1 ? `${itemData.item} × ${itemData.count}` : itemData.item;
+          pdf.text(`• ${itemText}`, marginLeft, cursorY);
+          cursorY += lineHeight;
+        });
       }
 
       // Footer
@@ -963,12 +1106,19 @@ Format your response as a clean list with each item clearly described.`
                   </h3>
                 </div>
                 
-                {comparisonResult.missingItems.length > 0 ? (
+                {comparisonResult.groupedMissingItems.length > 0 ? (
                   <ul className="space-y-2 max-h-64 overflow-y-auto">
-                    {comparisonResult.missingItems.map((item, index) => (
-                      <li key={index} className="flex items-center text-sm text-red-700 dark:text-red-300 bg-red-100 dark:bg-red-900/30 p-2 rounded">
-                        <X className="w-4 h-4 mr-2 flex-shrink-0" />
-                        <span className="break-words">{item}</span>
+                    {comparisonResult.groupedMissingItems.map((itemData, index) => (
+                      <li key={index} className="flex items-center justify-between text-sm text-red-700 dark:text-red-300 bg-red-100 dark:bg-red-900/30 p-2 rounded">
+                        <div className="flex items-center flex-1">
+                          <X className="w-4 h-4 mr-2 flex-shrink-0" />
+                          <span className="break-words">{itemData.item}</span>
+                        </div>
+                        {itemData.count > 1 && (
+                          <span className="bg-red-200 dark:bg-red-800 text-red-800 dark:text-red-200 px-2 py-1 rounded-full text-xs font-medium ml-2">
+                            × {itemData.count}
+                          </span>
+                        )}
                       </li>
                     ))}
                   </ul>
@@ -990,12 +1140,19 @@ Format your response as a clean list with each item clearly described.`
                   </h3>
                 </div>
                 
-                {comparisonResult.newItems.length > 0 ? (
+                {comparisonResult.groupedNewItems.length > 0 ? (
                   <ul className="space-y-2 max-h-64 overflow-y-auto">
-                    {comparisonResult.newItems.map((item, index) => (
-                      <li key={index} className="flex items-center text-sm text-yellow-700 dark:text-yellow-300 bg-yellow-100 dark:bg-yellow-900/30 p-2 rounded">
-                        <Plus className="w-4 h-4 mr-2 flex-shrink-0" />
-                        <span className="break-words">{item}</span>
+                    {comparisonResult.groupedNewItems.map((itemData, index) => (
+                      <li key={index} className="flex items-center justify-between text-sm text-yellow-700 dark:text-yellow-300 bg-yellow-100 dark:bg-yellow-900/30 p-2 rounded">
+                        <div className="flex items-center flex-1">
+                          <Plus className="w-4 h-4 mr-2 flex-shrink-0" />
+                          <span className="break-words">{itemData.item}</span>
+                        </div>
+                        {itemData.count > 1 && (
+                          <span className="bg-yellow-200 dark:bg-yellow-800 text-yellow-800 dark:text-yellow-200 px-2 py-1 rounded-full text-xs font-medium ml-2">
+                            × {itemData.count}
+                          </span>
+                        )}
                       </li>
                     ))}
                   </ul>
@@ -1017,12 +1174,19 @@ Format your response as a clean list with each item clearly described.`
                   </h3>
                 </div>
                 
-                {comparisonResult.commonItems.length > 0 ? (
+                {comparisonResult.groupedCommonItems.length > 0 ? (
                   <ul className="space-y-2 max-h-64 overflow-y-auto">
-                    {comparisonResult.commonItems.map((item, index) => (
-                      <li key={index} className="flex items-center text-sm text-green-700 dark:text-green-300 bg-green-100 dark:bg-green-900/30 p-2 rounded">
-                        <CheckCircle className="w-4 h-4 mr-2 flex-shrink-0" />
-                        <span className="break-words">{item}</span>
+                    {comparisonResult.groupedCommonItems.map((itemData, index) => (
+                      <li key={index} className="flex items-center justify-between text-sm text-green-700 dark:text-green-300 bg-green-100 dark:bg-green-900/30 p-2 rounded">
+                        <div className="flex items-center flex-1">
+                          <CheckCircle className="w-4 h-4 mr-2 flex-shrink-0" />
+                          <span className="break-words">{itemData.item}</span>
+                        </div>
+                        {itemData.count > 1 && (
+                          <span className="bg-green-200 dark:bg-green-800 text-green-800 dark:text-green-200 px-2 py-1 rounded-full text-xs font-medium ml-2">
+                            × {itemData.count}
+                          </span>
+                        )}
                       </li>
                     ))}
                   </ul>
