@@ -3,7 +3,6 @@ import { useParams, useNavigate } from 'react-router';
 import { Button } from '@/components/ui/button';
 import { extractFramesFromVideo } from '@/lib/utils';
 import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
 import {
   Video,
   Upload,
@@ -379,142 +378,130 @@ Format your response as a clean list with each item clearly described.`
     if (!comparisonResult || !room || !home) return;
 
     try {
-      // Create a temporary div to render the report content
-      const reportDiv = document.createElement('div');
-      reportDiv.style.position = 'absolute';
-      reportDiv.style.left = '-9999px';
-      reportDiv.style.top = '0';
-      reportDiv.style.width = '800px';
-      reportDiv.style.backgroundColor = 'white';
-      reportDiv.style.padding = '40px';
-      reportDiv.style.fontFamily = 'Arial, sans-serif';
-      reportDiv.style.color = 'black';
-      
-      const currentDate = new Date().toLocaleDateString();
-      const currentTime = new Date().toLocaleTimeString();
-      
-      reportDiv.innerHTML = `
-        <div style="text-align: center; margin-bottom: 30px;">
-          <h1 style="color: #1f2937; margin-bottom: 10px; font-size: 28px;">Room Inspection Report</h1>
-          <p style="color: #6b7280; font-size: 14px;">Generated on ${currentDate} at ${currentTime}</p>
-        </div>
-        
-        <div style="margin-bottom: 30px;">
-          <h2 style="color: #1f2937; margin-bottom: 15px; font-size: 20px;">Room Information</h2>
-          <table style="width: 100%; border-collapse: collapse;">
-            <tr>
-              <td style="padding: 8px; border: 1px solid #e5e7eb; font-weight: bold; width: 150px;">Room Name:</td>
-              <td style="padding: 8px; border: 1px solid #e5e7eb;">${room.name}</td>
-            </tr>
-            <tr>
-              <td style="padding: 8px; border: 1px solid #e5e7eb; font-weight: bold;">Home:</td>
-              <td style="padding: 8px; border: 1px solid #e5e7eb;">${home.name}</td>
-            </tr>
-            <tr>
-              <td style="padding: 8px; border: 1px solid #e5e7eb; font-weight: bold;">Description:</td>
-              <td style="padding: 8px; border: 1px solid #e5e7eb;">${room.description}</td>
-            </tr>
-          </table>
-        </div>
-        
-        <div style="margin-bottom: 30px;">
-          <h2 style="color: #1f2937; margin-bottom: 15px; font-size: 20px;">Inspection Summary</h2>
-          <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 20px;">
-            <div style="background-color: #fef2f2; border: 1px solid #fecaca; padding: 15px; border-radius: 8px; text-align: center;">
-              <div style="font-size: 24px; font-weight: bold; color: #dc2626;">${comparisonResult.missingItemsCount}</div>
-              <div style="font-size: 12px; color: #dc2626;">Missing Items</div>
-            </div>
-            <div style="background-color: #fffbeb; border: 1px solid #fed7aa; padding: 15px; border-radius: 8px; text-align: center;">
-              <div style="font-size: 24px; font-weight: bold; color: #d97706;">${comparisonResult.newItemsCount}</div>
-              <div style="font-size: 12px; color: #d97706;">New Items</div>
-            </div>
-            <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; padding: 15px; border-radius: 8px; text-align: center;">
-              <div style="font-size: 24px; font-weight: bold; color: #16a34a;">${comparisonResult.commonItemsCount}</div>
-              <div style="font-size: 12px; color: #16a34a;">Common Items</div>
-            </div>
-            <div style="background-color: #eff6ff; border: 1px solid #bfdbfe; padding: 15px; border-radius: 8px; text-align: center;">
-              <div style="font-size: 24px; font-weight: bold; color: #2563eb;">${comparisonResult.totalInspectionItems}</div>
-              <div style="font-size: 12px; color: #2563eb;">Total Items</div>
-            </div>
-          </div>
-        </div>
-        
-        <div style="margin-bottom: 30px;">
-          <h2 style="color: #1f2937; margin-bottom: 15px; font-size: 20px;">Detailed Results</h2>
-          
-          <div style="margin-bottom: 25px;">
-            <h3 style="color: #dc2626; margin-bottom: 10px; font-size: 16px;">Missing Items (${comparisonResult.missingItems.length})</h3>
-            ${comparisonResult.missingItems.length > 0 ? 
-              `<ul style="margin: 0; padding-left: 20px; color: #dc2626;">
-                ${comparisonResult.missingItems.map(item => `<li style="margin-bottom: 5px;">${item}</li>`).join('')}
-              </ul>` : 
-              '<p style="color: #6b7280; font-style: italic;">No missing items found. All reference items are present.</p>'
-            }
-          </div>
-          
-          <div style="margin-bottom: 25px;">
-            <h3 style="color: #d97706; margin-bottom: 10px; font-size: 16px;">New Items (${comparisonResult.newItems.length})</h3>
-            ${comparisonResult.newItems.length > 0 ? 
-              `<ul style="margin: 0; padding-left: 20px; color: #d97706;">
-                ${comparisonResult.newItems.map(item => `<li style="margin-bottom: 5px;">${item}</li>`).join('')}
-              </ul>` : 
-              '<p style="color: #6b7280; font-style: italic;">No new items found in the inspection.</p>'
-            }
-          </div>
-          
-          <div style="margin-bottom: 25px;">
-            <h3 style="color: #16a34a; margin-bottom: 10px; font-size: 16px;">Common Items (${comparisonResult.commonItems.length})</h3>
-            ${comparisonResult.commonItems.length > 0 ? 
-              `<ul style="margin: 0; padding-left: 20px; color: #16a34a;">
-                ${comparisonResult.commonItems.map(item => `<li style="margin-bottom: 5px;">${item}</li>`).join('')}
-              </ul>` : 
-              '<p style="color: #6b7280; font-style: italic;">No common items found between the reference and inspection.</p>'
-            }
-          </div>
-        </div>
-        
-        <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
-          <p style="color: #6b7280; font-size: 12px; text-align: center;">
-            This report was generated automatically by the HomeFinder Room Inspection System.
-          </p>
-        </div>
-      `;
-      
-      document.body.appendChild(reportDiv);
-      
-      // Convert to canvas and then to PDF
-      const canvas = await html2canvas(reportDiv, {
-        scale: 2,
-        useCORS: true,
-        allowTaint: true,
-        backgroundColor: '#ffffff'
-      });
-      
-      document.body.removeChild(reportDiv);
-      
-      const imgData = canvas.toDataURL('image/png');
       const pdf = new jsPDF('p', 'mm', 'a4');
-      const imgWidth = 210;
-      const pageHeight = 295;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-      let heightLeft = imgHeight;
-      
-      let position = 0;
-      
-      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-      heightLeft -= pageHeight;
-      
-      while (heightLeft >= 0) {
-        position = heightLeft - imgHeight;
-        pdf.addPage();
-        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-        heightLeft -= pageHeight;
+      const marginLeft = 15;
+      const lineHeight = 7;
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const safeWidth = pageWidth - marginLeft * 2;
+
+      let cursorY = 15;
+
+      const addTitle = (text: string) => {
+        pdf.setFont('helvetica', 'bold');
+        pdf.setFontSize(18);
+        pdf.text(text, marginLeft, cursorY);
+        cursorY += lineHeight + 2;
+      };
+
+      const addSubTitle = (text: string) => {
+        pdf.setFont('helvetica', 'normal');
+        pdf.setFontSize(11);
+        pdf.text(text, marginLeft, cursorY);
+        cursorY += lineHeight;
+      };
+
+      const addSectionHeader = (text: string) => {
+        cursorY += 2;
+        pdf.setDrawColor(230);
+        pdf.setFillColor(245, 247, 250);
+        pdf.rect(marginLeft, cursorY, safeWidth, lineHeight + 3, 'F');
+        pdf.setFont('helvetica', 'bold');
+        pdf.setFontSize(12);
+        pdf.setTextColor(31, 41, 55);
+        pdf.text(text, marginLeft + 2, cursorY + lineHeight);
+        pdf.setTextColor(0, 0, 0);
+        cursorY += lineHeight + 6;
+      };
+
+      const ensureSpace = (needed: number) => {
+        const pageHeight = pdf.internal.pageSize.getHeight();
+        if (cursorY + needed > pageHeight - 15) {
+          pdf.addPage();
+          cursorY = 15;
+        }
+      };
+
+      const addKeyValue = (key: string, value: string) => {
+        pdf.setFont('helvetica', 'bold');
+        pdf.setFontSize(11);
+        const keyText = `${key}: `;
+        const keyWidth = pdf.getTextWidth(keyText);
+        pdf.text(keyText, marginLeft, cursorY);
+
+        pdf.setFont('helvetica', 'normal');
+        const wrappedValue = pdf.splitTextToSize(value || '-', safeWidth - keyWidth - 2);
+        pdf.text(wrappedValue, marginLeft + keyWidth, cursorY);
+        cursorY += Math.max(lineHeight, wrappedValue.length * (lineHeight - 1));
+      };
+
+      const addBulletList = (items: string[], color: [number, number, number]) => {
+        pdf.setFont('helvetica', 'normal');
+        pdf.setFontSize(11);
+        pdf.setTextColor(color[0], color[1], color[2]);
+        for (const item of items) {
+          const wrapped = pdf.splitTextToSize(`• ${item}`, safeWidth);
+          ensureSpace(wrapped.length * (lineHeight - 1) + 2);
+          pdf.text(wrapped, marginLeft, cursorY);
+          cursorY += wrapped.length * (lineHeight - 1);
+        }
+        pdf.setTextColor(0, 0, 0);
+      };
+
+      // Header
+      addTitle('Room Inspection Report');
+      addSubTitle(`Generated on ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}`);
+
+      // Room Information
+      addSectionHeader('Room Information');
+      ensureSpace(3 * lineHeight + 10);
+      addKeyValue('Room Name', room.name);
+      addKeyValue('Home', home.name);
+      addKeyValue('Description', room.description || '-');
+
+      // Summary
+      addSectionHeader('Inspection Summary');
+      ensureSpace(4 * lineHeight + 10);
+      addKeyValue('Missing Items', String(comparisonResult.missingItemsCount));
+      addKeyValue('New Items', String(comparisonResult.newItemsCount));
+      addKeyValue('Common Items', String(comparisonResult.commonItemsCount));
+      addKeyValue('Total Items', String(comparisonResult.totalInspectionItems));
+
+      // Detailed Sections
+      addSectionHeader(`Missing Items (${comparisonResult.missingItems.length})`);
+      if (comparisonResult.missingItems.length === 0) {
+        ensureSpace(lineHeight);
+        pdf.text('No missing items found. All reference items are present.', marginLeft, cursorY);
+        cursorY += lineHeight;
+      } else {
+        addBulletList(comparisonResult.missingItems, [220, 38, 38]);
       }
-      
-      // Download the PDF
-      const fileName = `inspection-report-${room.name}-${currentDate.replace(/\//g, '-')}.pdf`;
+
+      addSectionHeader(`New Items (${comparisonResult.newItems.length})`);
+      if (comparisonResult.newItems.length === 0) {
+        ensureSpace(lineHeight);
+        pdf.text('No new items found in the inspection.', marginLeft, cursorY);
+        cursorY += lineHeight;
+      } else {
+        addBulletList(comparisonResult.newItems, [217, 119, 6]);
+      }
+
+      addSectionHeader(`Common Items (${comparisonResult.commonItems.length})`);
+      if (comparisonResult.commonItems.length === 0) {
+        ensureSpace(lineHeight);
+        pdf.text('No common items found between the reference and inspection.', marginLeft, cursorY);
+        cursorY += lineHeight;
+      } else {
+        addBulletList(comparisonResult.commonItems, [22, 163, 74]);
+      }
+
+      // Footer
+      ensureSpace(lineHeight * 2);
+      pdf.setFontSize(9);
+      pdf.setTextColor(107, 114, 128);
+      pdf.text('This report was generated automatically by the HomeFinder Room Inspection System.', marginLeft, cursorY);
+
+      const fileName = `inspection-report-${room.name}-${new Date().toISOString().slice(0,10)}.pdf`;
       pdf.save(fileName);
-      
     } catch (error) {
       console.error('Error generating PDF:', error);
       setError('Failed to generate PDF report. Please try again.');
