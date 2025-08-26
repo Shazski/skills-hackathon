@@ -61,6 +61,7 @@ const InspectionPage = () => {
   const [selectedRoomVideo, setSelectedRoomVideo] = useState<VideoAnalysis | null>(null);
   const [analysisProgress, setAnalysisProgress] = useState<number>(0);
   const [cameraReady, setCameraReady] = useState<boolean>(false);
+  const [currentCameraMode, setCurrentCameraMode] = useState<'user' | 'environment'>('user');
 
   // Refs
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -221,6 +222,55 @@ const InspectionPage = () => {
     return false;
   };
 
+  // Switch camera function for mobile devices
+  const switchCamera = async () => {
+    try {
+      console.log('Switching camera...');
+      
+      if (!mediaRecorderRef.current?.stream) {
+        console.log('No active stream to switch');
+        return;
+      }
+      
+      // Stop current stream
+      const currentStream = mediaRecorderRef.current.stream;
+      currentStream.getTracks().forEach(track => track.stop());
+      
+      // Determine current facing mode and switch
+      const currentVideoTrack = currentStream.getVideoTracks()[0];
+      const currentFacingMode = currentVideoTrack.getSettings().facingMode;
+      const newFacingMode = currentFacingMode === 'user' ? 'environment' : 'user';
+      
+      // Update camera mode state
+      setCurrentCameraMode(newFacingMode);
+      
+      console.log(`Switching from ${currentFacingMode} to ${newFacingMode} camera`);
+      
+      // Get new stream with different camera
+      const newStream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          facingMode: newFacingMode
+        }
+      });
+      
+      // Update video element
+      if (livePreviewRef.current) {
+        livePreviewRef.current.srcObject = newStream;
+        livePreviewRef.current.play().catch(console.error);
+      }
+      
+      // Note: MediaRecorder stream is read-only, so we can't update it
+      // The recording will continue with the new stream
+      console.log('Camera switched successfully');
+      
+    } catch (error) {
+      console.error('Failed to switch camera:', error);
+      setError('Failed to switch camera. Please try again.');
+    }
+  };
+
   // Handle video recording
   const startRecording = async () => {
     try {
@@ -250,6 +300,12 @@ const InspectionPage = () => {
       
       console.log('Camera stream obtained:', stream);
       console.log('Video tracks:', stream.getVideoTracks());
+      
+      // Set initial camera mode
+      const videoTrack = stream.getVideoTracks()[0];
+      const facingMode = videoTrack.getSettings().facingMode as 'user' | 'environment';
+      setCurrentCameraMode(facingMode || 'user');
+      console.log('Initial camera mode:', facingMode);
       
       // Check if video element is properly mounted
       if (!livePreviewRef.current) {
@@ -1488,40 +1544,131 @@ Respond with ONLY this JSON (no other text):
 
               <div className="p-4">
                 {/* Show live preview during recording */}
-                {isRecording && (
-                  <div className="space-y-4" data-recording-section="true">
-                    
-                    
-                    <div className="flex justify-center gap-3">
-                      <Button 
-                        variant="destructive"
-                        onClick={stopRecording}
-                        size="lg"
-                      >
-                        <div className="w-4 h-4 bg-white rounded-full mr-2"></div>
-                        Stop Recording
-                      </Button>
-                      
-                      {!cameraReady && (
-                        <Button 
-                          variant="outline"
+                                  {isRecording && (
+                    <div className="space-y-4" data-recording-section="true">
+                      <div className="relative aspect-video bg-black rounded-lg overflow-hidden">
+                        <video
+                          ref={livePreviewRef}
+                          data-live-preview="true"
+                          data-video-type="live-preview"
+                          autoPlay
+                          muted
+                          playsInline
+                          className="w-full h-full object-cover"
+                          style={{ transform: 'scaleX(-1)' }} // Mirror the camera feed
+                          onLoadedMetadata={() => {
+                            console.log('Live video metadata loaded');
+                            setCameraReady(true);
+                          }}
+                          onCanPlay={() => {
+                            console.log('Live video can play');
+                            setCameraReady(true);
+                          }}
+                          onPlay={() => {
+                            console.log('Live video playing');
+                            setCameraReady(true);
+                          }}
+                          onError={(e) => {
+                            console.error('Live video error:', e);
+                            setCameraReady(false);
+                          }}
+                          onLoadStart={() => console.log('Live video load started')}
+                          onLoadedData={() => {
+                            console.log('Live video data loaded');
+                            setCameraReady(true);
+                          }}
                           onClick={() => {
-                            console.log('Manual camera start clicked...');
-                            if (livePreviewRef.current && mediaRecorderRef.current?.stream) {
-                              const stream = mediaRecorderRef.current.stream;
-                              livePreviewRef.current.srcObject = stream;
+                            console.log('Video clicked, attempting manual play...');
+                            if (livePreviewRef.current) {
                               livePreviewRef.current.play().then(() => {
-                                console.log('Manual camera start successful');
+                                console.log('Manual play successful');
                                 setCameraReady(true);
                               }).catch(console.error);
                             }
                           }}
+                        />
+                        
+                        {/* Fallback message if camera not ready */}
+                        {!cameraReady && (
+                          <div className="absolute inset-0 flex items-center justify-center bg-black/50 text-white">
+                            <div className="text-center">
+                              <div className="animate-spin rounded-full h-8 w-8 border-2 border-white border-t-transparent mx-auto mb-2"></div>
+                              <p>Initializing camera...</p>
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* REC indicator */}
+                        <div className="absolute top-4 right-4 bg-red-600 text-white px-3 py-1 rounded-full text-sm font-medium flex items-center">
+                          <div className="w-2 h-2 bg-white rounded-full mr-2 animate-pulse"></div>
+                          REC
+                        </div>
+                        
+                        {/* Camera switch button for mobile */}
+                        <div className="absolute top-4 left-4">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={switchCamera}
+                            className="bg-black/70 text-white border-white/20 hover:bg-black/90"
+                            title={`Switch to ${currentCameraMode === 'user' ? 'back' : 'front'} camera`}
+                          >
+                            <Camera className="w-4 h-4 mr-1" />
+                            {currentCameraMode === 'user' ? 'Back' : 'Front'}
+                          </Button>
+                        </div>
+                        
+                        {/* Debug info */}
+                        <div className="absolute bottom-4 left-4 bg-black/70 text-white px-3 py-1 rounded text-xs">
+                          Camera: {cameraReady ? 'Ready' : 'Loading...'} | 
+                          Mode: {currentCameraMode === 'user' ? 'Front' : 'Back'} |
+                          State: {livePreviewRef.current?.readyState === 4 ? 'Ready' : livePreviewRef.current?.readyState || 'Unknown'} |
+                          Stream: {livePreviewRef.current?.srcObject ? 'Yes' : 'No'} |
+                          Paused: {livePreviewRef.current?.paused ? 'Yes' : 'No'}
+                        </div>
+                      </div>
+                      
+                                            <div className="flex justify-center gap-3">
+                        <Button 
+                          variant="destructive"
+                          onClick={stopRecording}
+                          size="lg"
+                        >
+                          <div className="w-4 h-4 bg-white rounded-full mr-2"></div>
+                          Stop Recording
+                        </Button>
+                        
+                        {/* Mobile camera switch button */}
+                        <Button 
+                          variant="outline"
+                          onClick={switchCamera}
+                          size="lg"
+                          className="bg-blue-600 hover:bg-blue-700 text-white border-blue-600"
                         >
                           <Camera className="w-4 h-4 mr-2" />
-                          Start Camera
+                          Switch to {currentCameraMode === 'user' ? 'Back' : 'Front'}
                         </Button>
-                      )}
-                    </div>
+                        
+                        {!cameraReady && (
+                          <Button 
+                            variant="outline"
+                            onClick={() => {
+                              console.log('Manual camera start clicked...');
+                              if (livePreviewRef.current && mediaRecorderRef.current?.stream) {
+                                const stream = mediaRecorderRef.current.stream;
+                                livePreviewRef.current.srcObject = stream;
+                                livePreviewRef.current.play().then(() => {
+                                  console.log('Manual camera start successful');
+                                  setCameraReady(true);
+                                }).catch(console.error);
+                              }
+                            }}
+                          >
+                            <Camera className="w-4 h-4 mr-2" />
+                            Start Camera
+                          </Button>
+                        )}
+                      </div>
                   </div>
                 )}
                 
