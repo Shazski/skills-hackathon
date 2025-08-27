@@ -1833,23 +1833,36 @@ Respond with ONLY this JSON (no other text):
                     <video
                       ref={videoRef}
                       src={inspectionVideo}
-                      controls
                       className="w-full rounded-lg"
+                              controls
+                              preload="metadata"
+                              playsInline
+                              onLoadedMetadata={(e) => {
+                                const videoElement = e.currentTarget;
+                                console.log('Video metadata loaded:', videoElement.videoWidth, 'x', videoElement.videoHeight);
+                                // Set mobile-specific attributes programmatically
+                                videoElement.setAttribute('webkit-playsinline', 'true');
+                                videoElement.setAttribute('x5-playsinline', 'true');
+                                videoElement.setAttribute('x5-video-player-type', 'h5');
+                                videoElement.setAttribute('x5-video-player-fullscreen', 'true');
+                              }}
+                              onCanPlay={(e) => {
+                                const videoElement = e.currentTarget;
+                                console.log('Video can play:', videoElement.readyState);
+                              }}
+                              onError={(e) => {
+                                console.error('Video error:', e.currentTarget.error);
+                              }}
+                              onClick={(e) => {
+                                const videoElement = e.currentTarget;
+                                playVideoOnMobile(videoElement);
+                              }}
+                              onTouchStart={(e) => {
+                                const videoElement = e.currentTarget;
+                                playVideoOnMobile(videoElement);
+                              }}
+
                       data-video-type="recorded"
-                      playsInline
-                      onLoadedMetadata={(e) => {
-                        const videoElement = e.currentTarget;
-                        // Set mobile-specific attributes programmatically
-                        videoElement.setAttribute('webkit-playsinline', 'true');
-                        videoElement.setAttribute('x5-playsinline', 'true');
-                        videoElement.setAttribute('x5-video-player-type', 'h5');
-                        videoElement.setAttribute('x5-video-player-fullscreen', 'true');
-                      }}
-                      onClick={() => {
-                        if (videoRef.current) {
-                          playVideoOnMobile(videoRef.current);
-                        }
-                      }}
                     />
                     
                     <div className="flex flex-wrap gap-3">
