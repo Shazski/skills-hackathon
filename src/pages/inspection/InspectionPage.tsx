@@ -721,8 +721,38 @@ const InspectionPage = () => {
           }
         }, 1000);
       }
-      
-      const mediaRecorder = new MediaRecorder(stream);
+
+      const getOptimalMimeType = () => {
+    // Priority 1: H.264 video in MP4 container
+    if (MediaRecorder.isTypeSupported('video/mp4; codecs=h264')) {
+        console.log("Using 'video/mp4; codecs=h264'");
+        return 'video/mp4; codecs=h264';
+    }
+    // Priority 2: Standard MP4
+    if (MediaRecorder.isTypeSupported('video/mp4')) {
+        console.log("Using 'video/mp4'");
+        return 'video/mp4';
+    }
+    // Priority 3: VP9 video in WebM container (high quality)
+    if (MediaRecorder.isTypeSupported('video/webm; codecs=vp9')) {
+        console.log("Using 'video/webm; codecs=vp9'");
+        return 'video/webm; codecs=vp9';
+    }
+    // Priority 4: Default WebM (widely supported)
+    if (MediaRecorder.isTypeSupported('video/webm')) {
+        console.log("Using 'video/webm'");
+        return 'video/webm';
+    }
+    console.log("Using default video/webm");
+    return 'video/webm'; // Fallback
+};
+
+const options = {
+    mimeType: getOptimalMimeType(),
+};
+
+      const mediaRecorder = new MediaRecorder(stream, options);
+      // const mediaRecorder = new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
       chunksRef.current = [];
       
