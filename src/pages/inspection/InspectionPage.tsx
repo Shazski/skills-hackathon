@@ -763,11 +763,20 @@ const options = {
       };
       
       mediaRecorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: 'video/webm' });
-        const url = URL.createObjectURL(blob);
-        setInspectionVideo(url);
-        setInspectionFile(new File([blob], 'inspection.webm', { type: 'video/webm' }));
-      };
+  // Get the actual MIME type used by the recorder
+  const recordedMimeType = mediaRecorderRef.current.mimeType;
+  console.log('Recording stopped. Final MIME Type:', recordedMimeType);
+  
+  // Create a blob with the correct MIME type
+  const blob = new Blob(chunksRef.current, { type: recordedMimeType });
+  const url = URL.createObjectURL(blob);
+  setInspectionVideo(url);
+  
+  // Create the File object with the correct type and a reasonable filename
+  const fileExtension = recordedMimeType.split('/')[1].split(';')[0];
+  setInspectionFile(new File([blob], `inspection.${fileExtension}`, { type: recordedMimeType }));
+};
+
       
       mediaRecorder.start();
       setIsRecording(true);
