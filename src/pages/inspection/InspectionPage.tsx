@@ -1109,8 +1109,8 @@ Respond with ONLY this JSON (no other text):
               content: prompt
             }
           ],
-          temperature: 0.1,
-          max_tokens: 2000
+          temperature: 0.1
+          // max_tokens: 2000
         })
       });
 
